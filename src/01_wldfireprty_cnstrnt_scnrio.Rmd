@@ -1748,7 +1748,7 @@ facet_map_fn <- function(row_n=1) {
       , plot.tag.position = c(.5, 0.98)
       , plot.tag = element_text(size = 8, face = "bold")
       # , plot.background = element_rect(color = "gray88", fill=NA, size=0.5)
-      , plot.margin = unit(c(0,0,0,0),"cm")
+      , plot.margin = margin(0, 0, 0, 0, "cm")
       # facet labels not alinging in plot_grid
       # , strip.text.x = element_text(color = "black", face = "bold")
       # , strip.text.y.left = element_text(angle = 0)
@@ -1775,7 +1775,7 @@ plt_list[16]
 
 Make each plot individually by landscape
 
-```{r scenario-maps2}
+```{r scenario-maps2, eval=T}
 #########################################################################
 #########################################################################
 #########################################################################
@@ -1948,7 +1948,7 @@ scenario_cnstrnt_map_fn <- function(row_n=1) {
       , axis.title = element_blank()
       , axis.text = element_blank()
       , axis.ticks = element_blank()
-      , plot.margin = unit(c(0,0,0,0),"cm")
+      , plot.margin = margin(0, 0, 0, 0, "cm")
     ) +
     guides(
       fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
@@ -2996,7 +2996,7 @@ plt <- ggplot(
     , alpha = 0.6
   ) +
   annotate("text"
-     , x = 0.44
+     , x = 0.46
      , y = obj_trtbl_temp %>% 
           dplyr::filter(scenario_id == scnum & sorting_rank==max(obj_trtbl_temp$sorting_rank)) %>% 
           dplyr::pull(area_name) %>% 
@@ -3018,7 +3018,7 @@ plt <- ggplot(
       # , fontface = "bold"
     )
     , position = position_stack(vjust = 0.5)
-    , color = "black", size = 2
+    , color = "black", size = 2.2
   ) +
   # total
   geom_text(
@@ -3050,7 +3050,7 @@ plt <- ggplot(
     , "fire"="orangered3")
   ) +
   # scale_x_continuous(expand = expansion(mult = c(0, .15)),labels = scales::percent_format()) +
-  scale_x_continuous(limits = c(0, .80),labels = scales::percent_format()) +
+  scale_x_continuous(limits = c(0, .78),labels = scales::percent_format(),position = "top") +
   labs(
     fill = "Level of\nConstraint"
     , y = ""
@@ -3058,7 +3058,6 @@ plt <- ggplot(
     , subtitle = obj_trtbl_temp %>% dplyr::filter(scenario_id==scnum) %>% 
         dplyr::pull(scenario_lab) %>% unique()
   ) +
-  scale_x_continuous(position = "top") +
   theme_light() +
   theme(
     legend.position = "top"
@@ -3073,7 +3072,7 @@ plt <- ggplot(
     , strip.text = element_text(color = "black", face = "bold", size = 10)
     , strip.background = element_rect(fill = "gray88")
     # , strip.placement = "outside"
-    , plot.margin = unit(c(-.15,0,-4,0),"cm")
+    , plot.margin = margin(0, 0, 0, 0, "cm")
     , plot.subtitle = element_text(vjust = -4,face="bold")
   ) +
   guides(
@@ -3092,10 +3091,19 @@ cowplot::plot_grid(
   , obj_plt_fn(3) +
     # scale_x_continuous(position = "top") +
     # labs(x = "Percent of Total High-Risk Area") +
-    theme(legend.position = "none")
+    theme(legend.position = "none", plot.margin = margin(0, 0, 0.1, 0, "cm"))
   , ncol = 1
   , align = 'vh'
 )
+# export
+ggplot2::ggsave(
+    filename = paste0("../data/plt_obj_sc.png")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 8.5
+    , units = "in"
+    , dpi = "print"
+  )
 
 ```
 
@@ -3340,7 +3348,7 @@ cnstrnt_dta_temp <- constrained_by_scnro_ls_pa %>%
   dplyr::group_by(scenario_desc, scenario_lab) %>% 
   dplyr::mutate(
     pct = n/sum(n)
-    , dta_src = "High-Risk Project Areas"
+    , dta_src = "High-Risk Firesheds"
   ) %>% 
   dplyr::bind_rows(
     constrained_by_scnro_ls_pa %>% 
@@ -3375,22 +3383,22 @@ ggplot(data=cnstrnt_dta_temp) +
   ) +
   geom_text(
     mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
-        ,label = scales::percent(ifelse(pct>=0.065,pct,NA), accuracy = 1)
+        ,label = scales::percent(ifelse(pct>=0.105,pct,NA), accuracy = 1)
         , fontface = "bold"
       )
     , position = position_stack(vjust = 0.5)
-    , color = "black", size = 3.5 # 2.8
+    , color = "black", size = 3.2 # 2.8
   ) +
   geom_text(
     mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
-        ,label = ifelse(pct>=0.065,
+        ,label = ifelse(pct>=0.105,
           paste0("n="
             ,scales::comma(n, accuracy = 1)
           )
           , NA)
       )
     , position = position_stack(vjust = 0.5)
-    , color = "black", size = 2.3 # 2.8
+    , color = "black", size = 2.1 # 2.8
     , vjust = 2.3
   ) +
   scale_fill_brewer(type = "div", palette = "RdYlBu", direction = -1) +
@@ -3415,6 +3423,15 @@ ggplot(data=cnstrnt_dta_temp) +
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
   )
 plt_fshed_cnstrnt_lvl
+# export
+ggplot2::ggsave(
+    filename = paste0("../data/plt_prjareas_dist_sc.png")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 8.5
+    , units = "in"
+    , dpi = "print"
+  )
 ```
 
 #### Combine map and fireshed plot
@@ -3425,29 +3442,41 @@ inset_temp <-
     cowplot::theme_minimal_grid(9) +
     theme(
       legend.position = "none"
-      , plot.background = element_rect(color = "black", fill="white", size=2)
+      , plot.background = element_rect(color = "black", fill="white", linewidth = 2)
       , axis.text.x = element_blank()
       , axis.title.x = element_text(size=7)
-      # , strip.text = element_text(color = "black", face = "bold", size = 12)
+      , strip.text = element_text(color = "black", face = "bold", size = 9)
     )
 
 # combine
 cowplot::ggdraw(
   plt_fpas_sc_map[[2]] + 
-    cowplot::theme_map(11) +
-    theme(legend.position = c(.15,.98), legend.direction = "horizontal")
+    theme(
+      legend.position = c(.4,.98)
+      , legend.direction = "horizontal"
+      , legend.text = element_text(size = 9)
+      , plot.background = element_rect(fill="white", color = NA)
+      , plot.margin = margin(0, 5.1, -0.7, 0.1, "cm")
+    )
   ) +
-  cowplot::draw_plot(inset_temp, .55, .6, .3, .35) +
+  cowplot::draw_plot(inset_temp, x=.5, y=.56, width=.45, height=.4) +
   cowplot::draw_plot_label(
-    c("A", "B"),
-    c(0.2, 0.55),
-    c(1, 0.95),
+    label = c("A", "B"),
+    x = c(0.02, 0.5),
+    y = c(1, 0.95),
     size = 17,
     fontface = "bold",
     color = "gray11"
   )
-
-
+# export
+ggplot2::ggsave(
+    filename = paste0("../data/plt_prjareas_sc_map_inset.png")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 8.5
+    , units = "in"
+    , dpi = "print"
+  )
 ```
 
 

@@ -5,7 +5,6 @@ tab:tot-ls-pa-tab
 caution
 objective
 data-sources
-treatable-area-scenario
 scenario-analysis-wcs-priority-landscapes
 scenarios-considered
 data-preparation

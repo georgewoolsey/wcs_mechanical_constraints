@@ -49,18 +49,6 @@ The data products used in this study include:
     i.  The United States Census Bureau [TIGER dataset](https://www.census.gov/programs-surveys/geography/guidance/tiger-data-products-guide.html) (2016 release)
     ii. The [USFS FACTS database](https://data.fs.usda.gov/geodata/edw/datasets.php?xmlKeyword) products: [Motor Vehicle Use Map: Roads](https://data.fs.usda.gov/geodata/edw/edw_resources/meta/S_USA.Road_MVUM.xml); [Motor Vehicle Use Map: Trails](https://data.fs.usda.gov/geodata/edw/edw_resources/meta/S_USA.Trail_MVUM.xml); [National Forest System Roads](https://data.fs.usda.gov/geodata/edw/edw_resources/meta/S_USA.RoadCore_FS.xml); [National Forest System Trails](https://data.fs.usda.gov/geodata/edw/edw_resources/meta/S_USA.TrailNFS_Publish.xml)
 
-# Treatable Area Scenario
-
-Constraint levels from least flexible to most flexible in interpretation and implementation:
-
-0) Forested - forested area based on NLCD (2019) classification at 30m
-1) Protected - GAP Status 1 and inventoried roadless areas (IRA)
-2) Slope > 35% - based on DEM at 10m
-3) Distance from Road > 2000ft - based on road and trail data layers
-4) Riparian Buffer - buffer of 100 ft. on streams and waterbodies based on NHD water network
-5) Administrative - USFWS sensitive species habitat and GAP Status 2
-    
-
 ```{r include=FALSE, echo=FALSE}
 knitr::write_bib(c(
   .packages(),
