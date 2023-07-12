@@ -112,6 +112,12 @@ kableExtra::kable(
   kableExtra::kable_styling(font_size = 11,fixed_thead = TRUE)
 ```
 
+The figure below illustrates the workflow used to quantify the amount of land available for mechanical forest health and risk reduction fuel treatments by considering layered operational constraints. This example illustrates scenario 2 for a 10,252 hectare (25,000 acre) fireshed project area near Rustic, Colorado in the Colorado Front Range priority landscape.
+
+```{r, echo=FALSE, out.width="100%", out.height="100%", fig.align='center', fig.show='hold',results='asis'}
+knitr::include_graphics("https://i.ibb.co/RyhjnQ5/Presentation1nm.png")
+```
+
 ## Data Preparation
 
 ### Load WCS landscapes
