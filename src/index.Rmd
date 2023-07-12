@@ -24,9 +24,9 @@ link-citations: true
 description: "Using the bookdown package to write a book of data exploration. The output format for this example is bookdown::gitbook."
 ---
 
-# Caution
+# Purpose
 
-This is a sandbox. Do not trust or re-use anything on here because it is a sandbox.
+Data analysis for USFS Wildfire Crisis Strategy (WCS) mechanical constraints project.
 
 # Objective
 

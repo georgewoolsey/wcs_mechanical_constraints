@@ -49,3 +49,4 @@ nlcd-cover-type-vs.-mechanically-available
 distribution-of-mechanically-available-shrb-vs.-frst
 distribution-of-fireshed-pa-constraint-shrb-vs.-frst
 high-risk-distribution-of-fireshed-pa-constraint-shrb-vs.-frst
+purpose
