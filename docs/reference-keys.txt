@@ -2,7 +2,7 @@ tab:sc-tab
 tab:ls-tab1
 tab:obj-vs-trtbl-tab
 tab:tot-ls-pa-tab
-caution
+purpose
 objective
 data-sources
 scenario-analysis-wcs-priority-landscapes
@@ -49,4 +49,3 @@ nlcd-cover-type-vs.-mechanically-available
 distribution-of-mechanically-available-shrb-vs.-frst
 distribution-of-fireshed-pa-constraint-shrb-vs.-frst
 high-risk-distribution-of-fireshed-pa-constraint-shrb-vs.-frst
-purpose

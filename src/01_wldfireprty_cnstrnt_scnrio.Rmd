@@ -312,7 +312,7 @@ fireshed <- sf::st_read("../data/firesheds/Fireshed_Registry3A_Fireshed/Fireshed
         levels = c("Top 1%","Top 5%","Top 10%","Top 25%","Bottom 75%")
         , ordered = T
       )
-    , crisis_strategy = ifelse(is.na(crisis_strategy),"No WCS Status",crisis_strategy) %>% 
+    , crisis_strategy = ifelse(is.na(crisis_strategy),"Not High Risk",crisis_strategy) %>% 
       as.factor() %>% 
       forcats::fct_shift()
   )
@@ -693,10 +693,10 @@ plt_basemap +
     # , min.segment.length = 0
     , show.legend = F
   ) +
-  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","No WCS Status"="gray88")) +
+  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
   scale_color_manual(values = c("black", "gray33")) +
   labs(
-    fill = "Fireshed\nCategory"
+    fill = "Fireshed\nHigh-Risk Status"
     , color = "Landscapes"
   ) +
   theme(
@@ -762,10 +762,10 @@ plt_basemap +
     # , min.segment.length = 0
     , show.legend = F
   ) +
-  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","No WCS Status"="gray88")) +
+  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
   scale_color_manual(values = c("black", "gray33")) +
   labs(
-    fill = "Fireshed\nCategory"
+    fill = "Fireshed\nHigh-Risk Status"
     , color = "Landscapes"
   ) +
   theme(
@@ -826,26 +826,27 @@ ggplot() +
     , fill=NA
     , lwd = 0.9
   )+
-  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","No WCS Status"="gray88")) +
-  scale_color_manual(values = c("gray44","slategray3", "black")) +
+  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
+  scale_color_manual(values = c("gray44","skyblue2", "black")) +
   labs(
-    fill = "Fireshed\nCategory"
+    fill = "Fireshed\nHigh-Risk Status"
     , color = "Spatial\nFramework"
     , subtitle = name_temp
   ) +
   coord_sf(expand = F) +
   theme_void() +
   theme(
-      legend.position = c(0.87,0.87) # "top"
+      legend.position = c(0.92,0.81) # "top"
       # , legend.direction = "horizontal"
-      , legend.title = element_text(size = 8, face = "bold")
-      , legend.text = element_text(size = 8)
-      , plot.subtitle = element_text(face = "bold.italic", size = 8, hjust = 0.5)
+      , legend.title = element_text(size = 12, face = "bold")
+      , legend.text = element_text(size = 14)
+      , plot.subtitle = element_text(face = "bold.italic", size = 16, hjust = 0.5)
     ) +
   guides(
-    color = guide_legend(order = 1, override.aes = list(lwd = 3, fill = NA)) #, linetype = c(5,1,1)
-    , fill = guide_legend(order = 2, override.aes = list(lwd = 0))
+    color = guide_legend(order = 1, override.aes = list(size = 14, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
+    , fill = guide_legend(order = 2, override.aes = list(size = 14,linewidth = 0, alpha = 1)) # , color = NA
   )
+# plt_fshed_pa
 # inset map
 bb_temp <- wf_landscapes %>% 
   dplyr::filter(name == name_temp) %>% 
@@ -875,6 +876,14 @@ cowplot::ggdraw(plt_fshed_pa) +
     # The width and height of the plot expressed as proportion of the entire ggdraw object
     , width = 0.28
     , height = 0.28
+  )
+ggplot2::ggsave(
+    filename = paste0("../data/plt_ex_spatial1.png")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 10
+    , units = "in"
+    , dpi = "print"
   )
 ```
 
@@ -930,7 +939,7 @@ ggplot() +
     , lwd = 0.9
   )+
   scale_fill_manual(values = viridis::viridis(n=4, direction = -1, alpha = 0.9)[c(1,3)]) +
-  scale_color_manual(values = c("gray33","slategray3", "black")) +
+  scale_color_manual(values = c("gray44","skyblue2", "black")) +
   labs(
     fill = "Project Area\nInclusions"
     # fill = "Included in this analysis\nif ≥25% area w/in landscape"
@@ -940,15 +949,23 @@ ggplot() +
   coord_sf(expand = F) +
   theme_void() +
   theme(
-      legend.position = c(0.87,0.87) # "top"
+      legend.position = c(0.92,0.83) # "top"
       # , legend.direction = "horizontal"
-      , legend.title = element_text(size = 8, face = "bold")
-      , legend.text = element_text(size = 8)
-      , plot.subtitle = element_text(face = "bold.italic", size = 8, hjust = 0.5)
+      , legend.title = element_text(size = 12, face = "bold")
+      , legend.text = element_text(size = 14)
+      , plot.subtitle = element_text(face = "bold.italic", size = 16, hjust = 0.5)
     ) +
   guides(
-    color = guide_legend(order = 1, override.aes = list(lwd = 3, fill = NA)) #, linetype = c(5,1,1)
-    , fill = guide_legend(order = 2, override.aes = list(lwd = 0))
+    color = guide_legend(order = 1, override.aes = list(size = 14, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
+    , fill = guide_legend(order = 2, override.aes = list(size = 14,linewidth = 0, alpha = 1)) # , color = NA
+  )
+ggplot2::ggsave(
+    filename = paste0("../data/plt_ex_spatial2.png")
+    , plot = ggplot2::last_plot()
+    , width = 10
+    , height = 10.5
+    , units = "in"
+    , dpi = "print"
   )
 ```
 
@@ -1197,6 +1214,11 @@ constrained_by_scnro_ls_long <- constrained_by_scnro_ls %>%
 ```
 
 ```{r ls-rdctn-plt2, fig.height=8, include=T, eval=T}
+# color pallete removing dark blue
+n_temp <- ((constrained_by_scnro_ls_long$constraint %>% unique() %>% length())-1)*2
+plasma_custom <- viridis::plasma(n = n_temp)[seq(2,n_temp,2)]
+# scales::show_col(plasma_custom)
+# plasma_custom
 # plot
 ggplot(
   data = constrained_by_scnro_ls_long %>% 
@@ -1240,7 +1262,8 @@ ggplot(
     , hjust = -0.1
   ) +
   facet_grid(cols = vars(scenario_lab)) +
-  scale_fill_viridis_d(option = "plasma") +
+  # scale_fill_viridis_d(option = "plasma") +
+  scale_fill_manual(values = plasma_custom) +
   scale_x_reverse(expand = expansion(mult = c(0.04, .3)),labels = scales::percent_format()) +
   labs(
     fill = ""
@@ -1258,6 +1281,14 @@ ggplot(
   guides(
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
   )
+ggplot2::ggsave(
+    filename = paste0("../data/plt_cnstrnt_rdctn_ls.png")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 8.5
+    , units = "in"
+    , dpi = "print"
+  )
 ```
 
 ```{r ls-rdctn-plt1, fig.height=9, include=FALSE, eval=FALSE}
@@ -1267,6 +1298,7 @@ ggplot() +
     data = constrained_by_scnro_ls_long %>% dplyr::filter(constraint!="Total")
     , mapping = aes(y = scenario_lab, x = pct_rdctn, fill = constraint)
     , color = NA, width = 0.7
+    , alpha = 0.7
   ) +
   geom_text(
     data = constrained_by_scnro_ls_long %>% dplyr::filter(constraint!="Total")
@@ -1291,7 +1323,8 @@ ggplot() +
       , ncol = 3
       , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
     ) +
-  scale_fill_viridis_d(option = "plasma", alpha = 0.7) +
+  # scale_fill_viridis_d(option = "plasma", alpha = 0.7) +
+  scale_fill_manual(values = plasma_custom) +
   scale_x_reverse(expand = expansion(mult = c(0, .12)),labels = scales::percent_format()) +
   labs(
     fill = ""
@@ -1453,7 +1486,7 @@ map_fs_temp <- fireshed_proj_area %>%
     , Pct.Treatable.Class = rmn_cnstrnt_class
     , Fireshed.ProjArea.ID = pa_id
     , Fireshed.ProjArea.Area.Hectares = feature_area_ha
-    , Fireshed.WCS.Status = ifelse(is.na(fireshed_crisis_strategy),"No WCS Status",fireshed_crisis_strategy)
+    , Fireshed.WCS.Status = ifelse(is.na(fireshed_crisis_strategy),"Not High Risk",fireshed_crisis_strategy)
     , ForestShrub.Area.Hectares = covertype_area_ha
     , Pct.Rdctn.Protected = pct_rdctn1_protected
     , Pct.Rdctn.Slope = pct_rdctn2_slope
@@ -1541,7 +1574,7 @@ mapview::mapview(
   , label = FALSE
   , legend = FALSE
   , layer.name = "Scenario 1 Constraints"
-  , hide = FALSE
+  , hide = TRUE
   , popup = leafpop::popupTable(
       mapview_fs_sc1_temp
       , zcol = c(
@@ -2073,7 +2106,7 @@ ggplot(data = wcs_status_temp) +
     , color = "black", size = 3.5
     , hjust = -0.1
   ) +
-  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","No WCS Status"="gray")) +
+  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray")) +
   scale_x_continuous(expand = expansion(mult = c(0, 0.1)),labels = scales::comma_format()) +
   labs(
     fill = "High-Risk\nStatus"
@@ -2099,7 +2132,7 @@ See [this section](#hi_geo_desc) for discussion of high-risk firesheds and crite
 ```{r area-pas-wcs}
 # data filter
 wcs_status_temp %>% 
-  dplyr::filter(fireshed_crisis_strategy!="No WCS Status") %>% 
+  dplyr::filter(fireshed_crisis_strategy!="Not High Risk") %>% 
   dplyr::group_by(area_name) %>% 
   dplyr::mutate(tot_area = sum(feature_area_ha)) %>% 
 # plot
@@ -2125,7 +2158,7 @@ ggplot() +
     data = constrained_by_scnro_ls_pa %>% 
         dplyr::filter(
           scenario_id==1
-          & fireshed_crisis_strategy!="No WCS Status"
+          & fireshed_crisis_strategy!="Not High Risk"
         ) %>%
         dplyr::group_by(area_name) %>% 
         dplyr::summarise(
@@ -2139,7 +2172,7 @@ ggplot() +
     , color = "black", size = 3.5
     , hjust = -0.1
   ) +
-  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","No WCS Status"="gray")) +
+  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray")) +
   scale_x_continuous(expand = expansion(mult = c(0, 0.15)),labels = scales::comma_format(suffix = "k ha", scale = 1e-3, accuracy = 1)) +
   labs(
     fill = "High-Risk\nStatus"
@@ -2246,7 +2279,8 @@ ggplot(data = constrained_by_scnro_ls_hionly_long) +
       , ncol = 3
       , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
     ) +
-  scale_fill_viridis_d(option = "plasma") +
+  # scale_fill_viridis_d(option = "plasma") +
+  scale_fill_manual(values = plasma_custom) +
   scale_x_reverse(expand = expansion(mult = c(0.02, .21)),labels = scales::percent_format()) +
   labs(
     fill = ""
@@ -2331,7 +2365,8 @@ ggplot(data = pct_rdctn_temp) +
       , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
       , switch = "y"
     ) +
-  scale_fill_viridis_d(option = "plasma") +
+  # scale_fill_viridis_d(option = "plasma") +
+  scale_fill_manual(values = plasma_custom) +
   scale_x_reverse(expand = expansion(mult = c(0.02, .21)),labels = scales::percent_format()) +
   labs(
     fill = ""
@@ -3319,7 +3354,8 @@ ggplot(data = pct_rdctn_all_temp) +
       cols = vars(dta_src %>% forcats::fct_rev())
       , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
     ) +
-  scale_fill_viridis_d(option = "plasma") +
+  # scale_fill_viridis_d(option = "plasma") +
+  scale_fill_manual(values = plasma_custom) +
   scale_x_reverse(expand = expansion(mult = c(0, .12)),labels = scales::percent_format()) +
   labs(
     fill = ""
@@ -3380,32 +3416,11 @@ nlab_temp <-
   dplyr::mutate(l = paste0(dta_src, " n = ", scales::comma(n))) %>% 
   dplyr::pull(l) %>% 
   paste(collapse = "\n")
-# plot
-plt_fshed_cnstrnt_lvl <- 
-ggplot(data=cnstrnt_dta_temp) +
+# plot base
+plt_fshed_cnstrnt_lvl_temp <- ggplot(data=cnstrnt_dta_temp) +
   geom_col(
     mapping = aes(x = pct, y = scenario_lab, fill=cnstrnt_class)
     ,width = 0.7, alpha=0.8
-  ) +
-  geom_text(
-    mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
-        ,label = scales::percent(ifelse(pct>=0.105,pct,NA), accuracy = 1)
-        , fontface = "bold"
-      )
-    , position = position_stack(vjust = 0.5)
-    , color = "black", size = 3.2 # 2.8
-  ) +
-  geom_text(
-    mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
-        ,label = ifelse(pct>=0.105,
-          paste0("n="
-            ,scales::comma(n, accuracy = 1)
-          )
-          , NA)
-      )
-    , position = position_stack(vjust = 0.5)
-    , color = "black", size = 2.1 # 2.8
-    , vjust = 2.3
   ) +
   scale_fill_brewer(type = "div", palette = "RdYlBu", direction = -1) +
   facet_grid(cols = vars(dta_src)) +
@@ -3428,7 +3443,28 @@ ggplot(data=cnstrnt_dta_temp) +
   guides(
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
   )
-plt_fshed_cnstrnt_lvl
+# plot with large labels
+plt_fshed_cnstrnt_lvl_temp + 
+  geom_text(
+    mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
+        ,label = scales::percent(ifelse(pct>=0.065,pct,NA), accuracy = 1)
+        , fontface = "bold"
+      )
+    , position = position_stack(vjust = 0.5)
+    , color = "black", size = 4 # 2.8
+  ) +
+  geom_text(
+    mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
+        ,label = ifelse(pct>=0.065,
+          paste0("n="
+            ,scales::comma(n, accuracy = 1)
+          )
+          , NA)
+      )
+    , position = position_stack(vjust = 0.5)
+    , color = "black", size = 2.5 # 2.8
+    , vjust = 2.3
+  ) 
 # export
 ggplot2::ggsave(
     filename = paste0("../data/plt_prjareas_dist_sc.png")
@@ -3443,8 +3479,28 @@ ggplot2::ggsave(
 #### Combine map and fireshed plot
 
 ```{r map-fs-plt-cmbn}
-inset_temp <-
-  plt_fshed_cnstrnt_lvl + 
+# plot small for inset
+inset_temp <- plt_fshed_cnstrnt_lvl_temp +
+  geom_text(
+    mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
+        ,label = scales::percent(ifelse(pct>=0.105,pct,NA), accuracy = 1)
+        , fontface = "bold"
+      )
+    , position = position_stack(vjust = 0.5)
+    , color = "black", size = 3.2 # 2.8
+  ) +
+  geom_text(
+    mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
+        ,label = ifelse(pct>=0.105,
+          paste0("n="
+            ,scales::comma(n, accuracy = 1)
+          )
+          , NA)
+      )
+    , position = position_stack(vjust = 0.5)
+    , color = "black", size = 2.1 # 2.8
+    , vjust = 2.3
+  ) +
     cowplot::theme_minimal_grid(9) +
     theme(
       legend.position = "none"
@@ -3994,5 +4050,47 @@ text_this_fn <- function(row_num) {
 }
 1:nrow(wf_landscapes) %>% 
   purrr::map(text_this_fn)
+```
+
+```{r, include=FALSE, eval=FALSE}
+# double-check high-risk area available/constrained
+ggplot() + 
+  geom_sf(
+    data = fireshed_proj_area %>% 
+      dplyr::select(pa_id, geometry) %>% 
+      dplyr::mutate(pa_id=as.character(pa_id)) %>% 
+      dplyr::inner_join(
+        constrained_by_scnro_ls_pa
+        , by = dplyr::join_by("pa_id")
+        , multiple = "all"
+      ) %>% 
+      dplyr::filter(
+        fireshed_crisis_strategy %in% c("USFS-Only", "All-Lands")
+        & area_name == area_nm_list[18]
+      )
+    , mapping = aes(fill = cnstrnt_class)
+  ) +
+  geom_sf(
+    data = wf_landscapes %>% dplyr::filter(area_name == area_nm_list[18])
+    , fill=NA
+    , color="black"
+    , lwd=0.2
+  ) +
+  facet_grid(cols = vars(scenario_lab)) +
+  scale_fill_brewer(type = "div", palette = "RdYlBu", direction = -1) +
+  theme_void()
+
+constrained_by_scnro_ls_pa %>% 
+  dplyr::filter(
+    fireshed_crisis_strategy %in% c("USFS-Only", "All-Lands")
+    & area_name == area_nm_list[18]
+  ) %>% 
+  dplyr::group_by(area_name, scenario_lab, cnstrnt_class) %>% 
+  dplyr::summarise(feature_area_ha=sum(feature_area_ha), trtbl_area = sum(rmn5_administrative_area_ha)) %>% 
+  dplyr::group_by(area_name,scenario_lab) %>% 
+  dplyr::mutate(tot_area = sum(feature_area_ha), pct = trtbl_area/tot_area) %>% 
+  kableExtra::kable() %>% 
+  kableExtra::kable_classic()
+
 ```
 
