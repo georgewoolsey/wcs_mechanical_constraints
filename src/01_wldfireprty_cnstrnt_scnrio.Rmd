@@ -837,17 +837,20 @@ ggplot() +
   coord_sf(expand = F) +
   theme_void() +
   theme(
-      legend.position = c(0.92,0.81) # "top"
+      legend.position = c(1.08,0.79) # "top"
       # , legend.direction = "horizontal"
-      , legend.title = element_text(size = 12, face = "bold")
-      , legend.text = element_text(size = 14)
-      , plot.subtitle = element_text(face = "bold.italic", size = 16, hjust = 0.5)
+      , legend.title = element_text(size = 8, face = "bold")
+      , legend.text = element_text(size = 10)
+      , plot.subtitle = element_text(face = "bold.italic", size = 10, hjust = 0.5)
     ) +
   guides(
-    color = guide_legend(order = 1, override.aes = list(size = 14, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
-    , fill = guide_legend(order = 2, override.aes = list(size = 14,linewidth = 0, alpha = 1)) # , color = NA
+    color = guide_legend(order = 1, override.aes = list(size = 8, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
+    , fill = guide_legend(order = 2, override.aes = list(size = 8,linewidth = 0, alpha = 1)) # , color = NA
   )
-# plt_fshed_pa
+```
+
+
+```{r map-fs-pa-inset, include=FALSE, eval=FALSE}
 # inset map
 bb_temp <- wf_landscapes %>% 
   dplyr::filter(name == name_temp) %>% 
@@ -888,13 +891,9 @@ ggplot2::ggsave(
   )
 ```
 
-Nested within firesheds are project areas of approximately 10,000 ha in size which represent the geographic unit at which vegetation and fuel management projects are planned ([Ager et al. 2021](https://scholar.google.com/scholar?cluster=7852635540589253195&hl=en&as_sdt=0,6)).
-
-### Fireshed Project Areas >25% w/in Landscape
-
 ```{r map-fs-pa-win}
-# pa map
-ggplot() + 
+# pa map w/in
+plt_fshed_pa_incl <- ggplot() + 
   geom_sf(data = 
     fireshed_proj_area %>% 
       dplyr::mutate(pa_id=as.character(pa_id)) %>% 
@@ -950,27 +949,57 @@ ggplot() +
   coord_sf(expand = F) +
   theme_void() +
   theme(
-      legend.position = c(0.92,0.83) # "top"
+      legend.position = c(1.08,0.83) # "top"
       # , legend.direction = "horizontal"
-      , legend.title = element_text(size = 12, face = "bold")
-      , legend.text = element_text(size = 14)
-      , plot.subtitle = element_text(face = "bold.italic", size = 16, hjust = 0.5)
+      , legend.title = element_text(size = 8, face = "bold")
+      , legend.text = element_text(size = 10)
+      , plot.subtitle = element_text(face = "bold.italic", size = 10, hjust = 0.5)
     ) +
   guides(
-    color = guide_legend(order = 1, override.aes = list(size = 14, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
-    , fill = guide_legend(order = 2, override.aes = list(size = 14,linewidth = 0, alpha = 1)) # , color = NA
+    color = guide_legend(order = 1, override.aes = list(size = 8, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
+    , fill = guide_legend(order = 2, override.aes = list(size = 8,linewidth = 0, alpha = 1)) # , color = NA
   )
+
+# combine
+cowplot::plot_grid(
+    plotlist = list(
+      NULL
+      , plt_fshed_pa + 
+        theme(
+          plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
+          , plot.margin = margin(0.5,3,0.5,0.5, "cm")
+        )
+      , NULL
+      , plt_fshed_pa_incl + 
+        theme(
+          plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
+          , plot.margin = margin(0.5,3,0.5,0.5, "cm")
+        )
+      , NULL
+    )
+    , nrow = 1
+    , rel_widths = c(0.01,1,0.01,1,0.01)
+    , labels = c("","A","","B","")
+    , label_size = 17
+    , label_fontface = "bold"
+    , label_colour = "gray11"
+    # , label_y = 0.99
+  ) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+# export
 ggplot2::ggsave(
-    filename = paste0("../data/plt_ex_spatial2.png")
+    filename = paste0("../data/plt_ex_spatial_strctr.png")
     , plot = ggplot2::last_plot()
-    , width = 10
-    , height = 10.5
+    , width = 11
+    , height = 5.8
     , units = "in"
     , dpi = "print"
   )
 ```
 
-Fireshed project areas that did not have at least *25%* of area within the boundary of the Strategy priority landscape were excluded from this analysis. This cutoff was implemented under the assumption that with less than 25% of area available, treatment alone would not substantially affect wildfire behavior across the fireshed ([North et al. 2015](https://scholar.google.com/scholar?cluster=10713464278686805098&hl=en&as_sdt=0,6)). For each fireshed project area included in this analysis, the entire area within the project area boundary was used to calculate the percent of mechanically available acreage including area outside of the priority landscape boundary.
+A) Nested within firesheds are project areas of approximately 10,000 ha in size which represent the geographic unit at which vegetation and fuel management projects are planned ([Ager et al. 2021](https://scholar.google.com/scholar?cluster=7852635540589253195&hl=en&as_sdt=0,6)).
+
+B) Fireshed project areas that did not have at least *25%* of area within the boundary of the Strategy priority landscape were excluded from this analysis. This cutoff was implemented under the assumption that with less than 25% of area available, treatment alone would not substantially affect wildfire behavior across the fireshed ([North et al. 2015](https://scholar.google.com/scholar?cluster=10713464278686805098&hl=en&as_sdt=0,6)). For each fireshed project area included in this analysis, the entire area within the project area boundary was used to calculate the percent of mechanically available acreage including area outside of the priority landscape boundary.
 
 ```{r, include=FALSE,eval=FALSE}
 ###################################
