@@ -152,7 +152,7 @@ wf_landscapes <- sf::read_sf("../data/Wildfire_Crisis_Strategy_Landscapes/Wildfi
   # manual label placement
   dplyr::left_join(
     readr::read_csv("../data/wildfirepriority/area_label_placement.csv")
-    , by = dplyr::join_by(area_name)
+    , by = dplyr::join_by("area_name")
   )
 #rename sf geom column
   names(wf_landscapes)[names(wf_landscapes)==tolower(attr(wf_landscapes, "sf_column"))] = "geometry"
@@ -2082,6 +2082,139 @@ tmap::tm_shape(map_fs_temp) +
 remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
+
+### Patch Analysis
+
+```{r patch-dta}
+# create spatial data of interconnected patches by constraint class
+# this is to represent the spatial aggregation of fireshed project areas of similar levels of  mechanical constraint
+  # aggregation = Tendency of patch or land-cover types to be spatially adjacent or in close proximity
+cnstrnt_class_patches <-
+  fireshed_proj_area %>% 
+      dplyr::mutate(pa_id=as.character(pa_id)) %>% 
+      dplyr::inner_join(
+        constrained_by_scnro_ls_pa %>% 
+          dplyr::select(pa_id, area_name, scenario_id, scenario_lab, cnstrnt_class)
+        , by = dplyr::join_by(pa_id)
+        , multiple = "all"
+      ) %>% 
+  # union vectors/polygons by constraint class into one multipolygon
+    # this dissolves inner boundaries by constraint class
+  dplyr::group_by(area_name, scenario_id, scenario_lab, cnstrnt_class) %>% 
+  dplyr::summarize(
+    geometry = sf::st_union(geometry, by_feature = F)
+  ) %>% 
+  # separate a multipolygon geometry into several polygons objects after performing a st_union()
+  sf::st_cast(to = "MULTIPOLYGON") %>%
+  st_cast(to = "POLYGON") %>% 
+  # calculate patch area 
+  dplyr::ungroup() %>% 
+  dplyr::group_by(area_name, scenario_id, scenario_lab, cnstrnt_class) %>% 
+  dplyr::mutate(
+    patch_area_ha = as.numeric(sf::st_area(geometry))/10000
+    , patch_area_rank = dplyr::dense_rank(dplyr::desc(patch_area_ha))
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::arrange(scenario_id, area_name, cnstrnt_class, dplyr::desc(patch_area_ha)) %>% 
+  # calculate proportion of total area in each patch
+  dplyr::inner_join(
+    # total area of fireshed project areas included for analysis
+      # after union to remove internal boundaries
+    fireshed_proj_area %>% 
+      dplyr::mutate(pa_id=as.character(pa_id)) %>% 
+      dplyr::inner_join(
+        constrained_by_scnro_ls_pa %>% 
+          dplyr::filter(scenario_id==1) %>% 
+          dplyr::select(pa_id, area_name)
+        , by = dplyr::join_by(pa_id)
+        , multiple = "all"
+      ) %>% 
+      dplyr::group_by(area_name) %>% 
+      dplyr::summarize(
+        geometry = sf::st_union(geometry, by_feature = F)
+      ) %>%
+      dplyr::mutate(
+        total_area_ha = as.numeric(sf::st_area(geometry))/10000
+      ) %>% 
+      sf::st_drop_geometry()
+    , by = dplyr::join_by(area_name)
+  ) %>% 
+  dplyr::mutate(
+    pct_patch_landscape = patch_area_ha / total_area_ha
+  )
+```
+
+
+```{r patch-plts}
+plt_ptch_list <- c(1,9) %>% 
+# plt_ptch_list <- 1:length(area_nm_list) %>% 
+  purrr::map(function(xx){
+    scenario_cnstrnt_map_fn(xx) +
+    geom_sf(
+        data = cnstrnt_class_patches %>%
+          dplyr::filter(
+            area_name == area_nm_list[xx]
+            & patch_area_rank == 1
+            & cnstrnt_class != "med. constraint"
+          ) %>%
+          sf::st_transform(crs=plt_crs)
+        , aes(color = cnstrnt_class, fill = NA), lwd = 1.4
+        , inherit.aes = F
+        , alpha = 0
+      ) +
+    scale_color_manual(
+      values = 
+        c(
+          "low constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[2]
+          , "med. constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[7]
+          , "high constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[10]
+        )                   
+    ) +
+    guides(
+      color = "none"
+      , fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
+    )
+
+  })
+# scenario_maps
+plt_ptch_list[]
+```
+
+
+```{r patch-plts-test, include=F, eval=F}
+# Check out patches
+scenario_cnstrnt_map_fn(9) +
+  geom_sf(
+      data = cnstrnt_class_patches %>%
+        dplyr::filter(
+          area_name == area_nm_list[9]
+          & patch_area_rank == 1
+          & cnstrnt_class != "med. constraint"
+        ) %>%
+        sf::st_transform(crs=plt_crs)
+      , aes(color = cnstrnt_class, fill = NA), lwd = 2
+      , inherit.aes = F
+      , alpha = 0
+    ) +
+  geom_sf(
+      data = cnstrnt_class_patches %>%
+        dplyr::filter(
+          area_name == area_nm_list[9]
+          & patch_area_rank == 1
+          & cnstrnt_class != "med. constraint"
+        ) %>%
+        sf::st_transform(crs=plt_crs)
+      , fill = NA, lwd = 0.5
+      , inherit.aes = F
+    ) +
+  scale_color_manual(values = cols_temp) +
+  guides(
+    color = "none"
+    , fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
+  )
+
+```
+
 
 ## High-risk fireshed project areas
 
