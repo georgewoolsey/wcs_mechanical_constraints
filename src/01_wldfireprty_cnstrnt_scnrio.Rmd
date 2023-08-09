@@ -1771,7 +1771,7 @@ How do small multiple maps of scenarios look?
 *the answer is: bad*
 see [this post](https://jayrobwilliams.com/posts/2021/05/geom-sf-facet) about small multiple maps
 
-```{r scenario-maps, fig.height=7, include=T, eval=T}
+```{r scenario-maps, fig.height=7, include=T, eval=F}
 area_nm_list <- sort(unique(constrained_by_scnro_ls$area_name))
 facet_map_fn <- function(row_n=1) {
   plt <- ggplot() +
@@ -1844,7 +1844,7 @@ plt_list[16]
 
 Make each plot individually by landscape
 
-```{r scenario-maps2, eval=T}
+```{r scenario-maps2, eval=T, include=T}
 #########################################################################
 #########################################################################
 #########################################################################
@@ -1875,13 +1875,13 @@ if_smaller_ha_temp <- wf_landscapes %>%
   quantile(0.45) %>% 
   purrr::pluck(1)
 # create color palette
-cols_temp <- c(
+cols_rdylbu_lt <- c(
   "low constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[1]
   , "med. constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[2]
   , "high constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[3]
 )
-# function to plot
-scenario_cnstrnt_map_fn <- function(row_n=1) {
+# function to plot basemap
+landscape_basemap_fn <- function(row_n=1) {
   # should zoom in?
   zoom_level <- dplyr::case_when(
     area_nm_list[row_n] %in% c(
@@ -1969,42 +1969,16 @@ scenario_cnstrnt_map_fn <- function(row_n=1) {
     , maptype = "terrain" #"toner-hybrid" # "terrain"
     , crop = T
   )
-  ggmap(hey_ggmap)
+  # ggmap(hey_ggmap)
   # apply align function
     hey_ggmap_aligned <- ggmap_bbox_fn(hey_ggmap, plt_crs) # Use the function
   # plot
   plt <- ggmap(hey_ggmap_aligned) + 
-    geom_sf(
-      data = map_fs_temp %>%
-        dplyr::filter(
-          area_name == area_nm_list[row_n]
-        ) %>%
-        sf::st_transform(crs=plt_crs)
-      , aes(fill = cnstrnt_class), lwd = 0.05
-      , inherit.aes = F
-      , alpha = 0.6
-    ) +
-    geom_sf(
-      data = wf_landscapes %>% 
-        dplyr::filter(
-            area_name == area_nm_list[row_n]
-          ) %>% 
-        sf::st_transform(crs=plt_crs)
-      , fill = NA, color = "black", lwd = 0.3
-      , inherit.aes = F
-    ) +
     coord_sf(
       expand = FALSE
     ) +
-    facet_grid(
-      cols = vars(scenario_lab)
-      , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
-      # , switch = "both"
-    ) +
-    scale_fill_manual(values = cols_temp) +
     labs(
-      fill = "Level of\nConstraint"
-      , title = area_nm_list[row_n]
+      title = area_nm_list[row_n]
     ) +
     theme_light() +
     theme(
@@ -2017,18 +1991,56 @@ scenario_cnstrnt_map_fn <- function(row_n=1) {
       , axis.title = element_blank()
       , axis.text = element_blank()
       , axis.ticks = element_blank()
+      , panel.grid = element_blank()
       , plot.margin = margin(0, 0, 0, 0, "cm")
-    ) +
-    guides(
-      fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
     )
   # return
   return(plt)
 }
-# go through list of areas
-# area_nm_list
-# scenario_cnstrnt_map_fn(row_n = 18, bb = 21000, zl = 9)
-plt_list <- 1:length(area_nm_list) %>% 
+# landscape_basemap_fn(row_n = 9)
+# function to plot scenario constraints + basemap
+scenario_cnstrnt_map_fn <- function(row_n = 1) {
+  plt <- landscape_basemap_fn(row_n) + 
+      geom_sf(
+        data = map_fs_temp %>%
+          dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>%
+          sf::st_transform(crs=plt_crs)
+        , aes(fill = cnstrnt_class), lwd = 0.05
+        , inherit.aes = F
+        , alpha = 0.6
+      ) +
+      geom_sf(
+        data = wf_landscapes %>% 
+          dplyr::filter(
+              area_name == area_nm_list[row_n]
+            ) %>% 
+          sf::st_transform(crs=plt_crs)
+        , fill = NA, color = "black", lwd = 0.3
+        , inherit.aes = F
+      ) +
+      facet_grid(
+        cols = vars(scenario_lab)
+        , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+        # , switch = "both"
+      ) +
+      scale_fill_manual(values = cols_rdylbu_lt) +
+      labs(
+        fill = "Level of\nConstraint"
+      ) +
+        guides(
+        fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
+      )
+  # return
+  return(plt)
+}
+# scenario_cnstrnt_map_fn(row_n = 9)
+```
+
+```{r scenario-maps-print, eval=T, include=T}
+# go through list of areas to make plot
+plt_list <- 1:length(area_nm_list) %>%
   purrr::map(scenario_cnstrnt_map_fn)
 # scenario_maps
 plt_list[]
@@ -2071,19 +2083,13 @@ tmap::tm_shape(map_fs_temp) +
              title.size = "Volcanoes (m asl)") +
   tmap::tm_layout(main.title = "Easter Island",
             bg.color = "lightblue")
-
-
-
-
-```
-
-
-```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
-remove(list = ls()[grep("_temp",ls())])
-gc()
 ```
 
 ### Patch Analysis
+
+**Notes from [Collins et al. 2010](https://scholar.google.com/scholar?cluster=14071982813334795288&hl=en&as_sdt=0,6):**
+
+The larger the individual fuel treatment the greater the potential for tree survival, because of reduced edge effect mortality ([Ritchie et al. 2007](https://scholar.google.com/scholar?cluster=7561962418592858482&hl=en&as_sdt=0,6)). Larger individual treatments have a greater potential to reduce fire behavior and slow fire spread, which ultimately impacts adjacent untreated stands and should enhance suppression opportunities and increase firefighter safety ([Collins et al. 2010](https://scholar.google.com/scholar?cluster=14071982813334795288&hl=en&as_sdt=0,6)). Planning fewer, larger individual treatments across the landscape appears to be a better strategy when human community protection is a primary concern ([Schmidt et al. 2008](https://scholar.google.com/scholar?cluster=9335664484836309865&hl=en&as_sdt=0,6)). [Finney et al. (2007)](https://scholar.google.com/scholar?cluster=11562925721001692199&hl=en&as_sdt=0,6) note that the relative improvement of optimized treatment placement breaks down when larger proportions of the landscape (40–50%) are excluded from treatment because of land-management constraints.
 
 ```{r patch-dta}
 # create spatial data of interconnected patches by constraint class
@@ -2145,74 +2151,247 @@ cnstrnt_class_patches <-
 ```
 
 
-```{r patch-plts}
-plt_ptch_list <- c(1,9) %>% 
-# plt_ptch_list <- 1:length(area_nm_list) %>% 
-  purrr::map(function(xx){
-    scenario_cnstrnt_map_fn(xx) +
-    geom_sf(
-        data = cnstrnt_class_patches %>%
-          dplyr::filter(
-            area_name == area_nm_list[xx]
-            & patch_area_rank == 1
-            & cnstrnt_class != "med. constraint"
-          ) %>%
-          sf::st_transform(crs=plt_crs)
-        , aes(color = cnstrnt_class, fill = NA), lwd = 1.4
-        , inherit.aes = F
-        , alpha = 0
+```{r patch-plt}
+# function to highlight largest patch with fireshed project areas under
+cols_rdylbu_dk <- c(
+  "low constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[2]
+  , "med. constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[7]
+  , "high constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[10]
+)
+largest_patch_map_fn <- function(nrow = 1){
+    plt <- scenario_cnstrnt_map_fn(nrow) +
+      geom_sf(
+          data = cnstrnt_class_patches %>%
+            dplyr::filter(
+              area_name == area_nm_list[nrow]
+              & patch_area_rank == 1
+              & cnstrnt_class != "med. constraint"
+            ) %>%
+            sf::st_transform(crs=plt_crs)
+          , aes(color = cnstrnt_class, fill = cnstrnt_class), lwd = 1.4
+          , inherit.aes = F
+          , alpha = 0
+          # , show.legend = F
+        ) +
+      scale_color_manual(values = cols_rdylbu_dk, drop = F) +
+      labs(
+        color = "Level of\nConstraint"
+        , subtitle = "largest patch of contiguous fireshed project areas classified by level of mechanical constraint" # largest patch of spatially adjacent...
       ) +
-    scale_color_manual(
-      values = 
-        c(
-          "low constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[2]
-          , "med. constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[7]
-          , "high constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[10]
-        )                   
-    ) +
-    guides(
-      color = "none"
-      , fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
-    )
+      theme(
+        plot.subtitle = element_text(size = 8)
+      ) +
+      guides(
+        color = "none"
+        , fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
+      )
+  # return
+  return(plt)
+}
+# largest_patch_map_fn(13)
+```
 
-  })
+```{r patch-plt-print}
+# plot each landscape
+plt_ptch_list <- 1:length(area_nm_list) %>%
+  purrr::map(largest_patch_map_fn)
 # scenario_maps
 plt_ptch_list[]
 ```
 
 
 ```{r patch-plts-test, include=F, eval=F}
-# Check out patches
-scenario_cnstrnt_map_fn(9) +
+# largest patch with fireshed project areas
+scenario_cnstrnt_map_fn(16) +
   geom_sf(
       data = cnstrnt_class_patches %>%
         dplyr::filter(
-          area_name == area_nm_list[9]
+          area_name == area_nm_list[16]
           & patch_area_rank == 1
           & cnstrnt_class != "med. constraint"
         ) %>%
         sf::st_transform(crs=plt_crs)
-      , aes(color = cnstrnt_class, fill = NA), lwd = 2
+      , aes(color = cnstrnt_class, fill = cnstrnt_class), lwd = 1.4
       , inherit.aes = F
       , alpha = 0
+      # , show.legend = F
     ) +
-  geom_sf(
-      data = cnstrnt_class_patches %>%
-        dplyr::filter(
-          area_name == area_nm_list[9]
-          & patch_area_rank == 1
-          & cnstrnt_class != "med. constraint"
-        ) %>%
-        sf::st_transform(crs=plt_crs)
-      , fill = NA, lwd = 0.5
-      , inherit.aes = F
-    ) +
-  scale_color_manual(values = cols_temp) +
+  scale_color_manual(
+    values = 
+      c(
+        "low constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[2]
+        , "med. constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[7]
+        , "high constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[10]
+      )
+    , drop = F
+  ) +
+  labs(
+    color = "Level of\nConstraint"
+    , subtitle = "largest patch of contiguous fireshed project areas classified by level of mechanical constraint" # largest patch of spatially adjacent...
+  ) +
+  theme(
+    plot.subtitle = element_text(size = 8)
+  ) +
   guides(
     color = "none"
     , fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
   )
+# largest patch without fireshed project areas
+landscape_basemap_fn(16) +
+  geom_sf(
+      data = cnstrnt_class_patches %>%
+        dplyr::filter(
+          area_name == area_nm_list[16]
+          & patch_area_rank == 1
+          & cnstrnt_class != "med. constraint"
+        ) %>%
+        sf::st_transform(crs=plt_crs)
+      , aes(color = cnstrnt_class, fill = cnstrnt_class), lwd = 1.4
+      , inherit.aes = F
+      , alpha = 0.5
+      # , show.legend = F
+    ) +
+  geom_sf(
+    data = wf_landscapes %>% 
+      dplyr::filter(
+          area_name == area_nm_list[16]
+        ) %>% 
+      sf::st_transform(crs=plt_crs)
+    , fill = NA, color = "black", lwd = 0.3
+    , inherit.aes = F
+  ) +
+  scale_color_manual(
+    values = 
+      c(
+        "low constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[2]
+        , "med. constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[7]
+        , "high constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[10]
+      )
+    , drop = F
+  ) +
+  scale_fill_manual(values = cols_rdylbu_lt) +
+  facet_grid(
+    cols = vars(forcats::fct_rev(scenario_lab))
+    , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+  ) +
+  labs(
+    color = "Level of\nConstraint"
+    , fill = "Level of\nConstraint"
+    , subtitle = "largest patch of contiguous fireshed project areas classified by level of mechanical constraint" # largest patch of spatially adjacent...
+  ) +
+  theme(
+    plot.subtitle = element_text(size = 8)
+  ) +
+  guides(
+    color = "none"
+    , fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
+  )
+```
 
+Comparison of largest patch of lightly constrained fireshed project areas versus largest patch of highly constrained fireshed project areas.
+
+Planning fewer, larger individual treatments across the landscape appears to be a better strategy when human community protection is a primary concern ([Schmidt et al. 2008](https://scholar.google.com/scholar?cluster=9335664484836309865&hl=en&as_sdt=0,6)). [Finney et al. (2007)](https://scholar.google.com/scholar?cluster=11562925721001692199&hl=en&as_sdt=0,6) note that the relative improvement of optimized treatment placement breaks down when larger proportions of the landscape (40–50%) are excluded from treatment because of land-management constraints.
+
+```{r hi-low-patch-comp}
+# aggregate to constraint class level
+cnstrnt_class_patches %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::group_by(area_name, scenario_lab, cnstrnt_class) %>% 
+  dplyr::summarize(
+    max_patch_area_ha = max(patch_area_ha, na.rm = T)
+    , mean_patch_area_ha = mean(patch_area_ha, na.rm = T)
+    , max_pct_patch_landscape = max(pct_patch_landscape, na.rm = T)
+    , sum_pct_patch_landscape = sum(pct_patch_landscape)
+  ) %>% 
+  dplyr::ungroup() %>%
+  dplyr::mutate(
+    max_pct_patch_landscape_hack = dplyr::case_when(
+      cnstrnt_class=="high constraint" ~ -max_pct_patch_landscape
+      , TRUE ~ max_pct_patch_landscape
+    )
+  ) %>% 
+  dplyr::filter(
+    cnstrnt_class!="med. constraint"
+  ) %>% 
+# plot
+ggplot(
+  mapping = aes(
+    y = scenario_lab
+    , x = max_pct_patch_landscape_hack
+    , fill = cnstrnt_class
+    , group = cnstrnt_class
+  )
+) +
+  # geom_line(
+  #   mapping = aes(x = forcats::fct_rev(scenario_lab), y = max_pct_patch_landscape, color = forcats::fct_rev(cnstrnt_class), group = forcats::fct_rev(cnstrnt_class))
+  #   , linewidth = 1.2
+  # ) +
+  geom_col(
+    width = 0.7, alpha = 0.9
+  ) +
+  geom_vline(xintercept = 0, color = "gray55", linetype = "solid", linewidth = 1.1) +
+  geom_text(
+    mapping = aes(
+      label = ifelse(
+        max_pct_patch_landscape_hack<0
+        , scales::percent(max_pct_patch_landscape, accuracy = 1)
+        , ""
+      )
+      , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+    )
+    , color = "black", size = 3.5
+    , hjust = +1
+  ) +
+  geom_text(
+    mapping = aes(
+      label = ifelse(
+        max_pct_patch_landscape_hack>=0
+        , scales::percent(max_pct_patch_landscape, accuracy = 1)
+        , ""
+      )
+      , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+    )
+    , color = "black", size = 3.5
+    , hjust = 0
+  ) +
+  scale_fill_manual(values = cols_rdylbu_lt) +
+  scale_x_continuous(
+    limits = c(-1.04,1.09)
+    , labels = scales::percent_format()
+    # , expand = expansion(mult = c(0, 0.1))
+    # , breaks = scales::extended_breaks(5)
+  ) +
+  facet_wrap(
+    facets = vars(area_name)
+    , ncol = 3
+    , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+    , scales = "free_y"
+  ) +
+  labs(
+    fill = "Level of\nConstraint"
+    , x = "Largest Patch\n% of Landscape Area"
+    , y = ""
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "top"
+    , legend.direction  = "horizontal"
+    , legend.title = element_text(size=7)
+    , axis.title.x = element_text(size=10, face = "bold")
+    , axis.title.y = element_blank()
+    , axis.text.x = element_blank()
+    , panel.grid.major = element_blank()
+    , panel.grid.minor = element_blank()
+  ) +
+  guides(
+    fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
+  )
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
 ```
 
 
