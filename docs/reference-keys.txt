@@ -26,6 +26,7 @@ distribution-of-fireshed-area
 map-of-firesheds-by-level-of-constraint
 map-of-fireshed-project-areas-by-scenario
 map-fireshed-project-areas-by-scenario-and-landscape
+patch-analysis
 high-risk-fireshed-project-areas
 project-areas-by-wcs-status
 area-of-high-risk-project-areas

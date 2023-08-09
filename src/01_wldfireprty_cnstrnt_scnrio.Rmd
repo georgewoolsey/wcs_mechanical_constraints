@@ -1197,6 +1197,7 @@ ggplot(
       legend.position = "none"
       , axis.text.y = element_text(size=7)
       , axis.text.x = element_text(size=7.5)
+      , strip.text = element_text(color = "black", face = "bold", size = 10)
     )
 ```
 
@@ -1368,6 +1369,7 @@ ggplot() +
     , legend.title = element_text(size=7)
     , axis.title = element_text(size=9)
     , axis.text.x = element_blank()
+    , strip.text = element_text(color = "black", face = "bold", size = 10)
     
   )
 ```
@@ -2292,7 +2294,7 @@ Comparison of largest patch of lightly constrained fireshed project areas versus
 
 Planning fewer, larger individual treatments across the landscape appears to be a better strategy when human community protection is a primary concern ([Schmidt et al. 2008](https://scholar.google.com/scholar?cluster=9335664484836309865&hl=en&as_sdt=0,6)). [Finney et al. (2007)](https://scholar.google.com/scholar?cluster=11562925721001692199&hl=en&as_sdt=0,6) note that the relative improvement of optimized treatment placement breaks down when larger proportions of the landscape (40–50%) are excluded from treatment because of land-management constraints.
 
-```{r hi-low-patch-comp}
+```{r hi-low-patch-comp, fig.height=10}
 # aggregate to constraint class level
 cnstrnt_class_patches %>% 
   sf::st_drop_geometry() %>% 
@@ -2338,8 +2340,9 @@ ggplot(
         , ""
       )
       , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+      , fontface = "bold"
     )
-    , color = "black", size = 3.5
+    , color = "black", size = 2.7
     , hjust = +1
   ) +
   geom_text(
@@ -2350,17 +2353,37 @@ ggplot(
         , ""
       )
       , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+      , fontface = "bold"
     )
-    , color = "black", size = 3.5
+    , color = "black", size = 2.7
     , hjust = 0
+  ) +
+  annotate(
+    geom = "text"
+    , x = -0.77
+    , y = 0
+    , label = "high constraint"
+    , color = cols_rdylbu_lt[3]
+    , fontface = "bold"
+    , size = 2.5
+  ) +
+  annotate(
+    geom = "text"
+    , x = 0.86
+    , y = 0
+    , label = "low constraint"
+    , color = cols_rdylbu_lt[1]
+    , fontface = "bold"
+    , size = 2.5
   ) +
   scale_fill_manual(values = cols_rdylbu_lt) +
   scale_x_continuous(
-    limits = c(-1.04,1.09)
+    limits = c(-1.05,1.13)
     , labels = scales::percent_format()
     # , expand = expansion(mult = c(0, 0.1))
     # , breaks = scales::extended_breaks(5)
   ) +
+  scale_y_discrete(expand = expansion(mult = c(0.8,0.3))) +
   facet_wrap(
     facets = vars(area_name)
     , ncol = 3
@@ -2369,19 +2392,22 @@ ggplot(
   ) +
   labs(
     fill = "Level of\nConstraint"
-    , x = "Largest Patch\n% of Landscape Area"
+    , subtitle = "percentage of total landscape area comprised by the largest patch" # "Largest Patch % of Landscape Area"
+    , x = "" # "Largest Patch % of Landscape Area"
     , y = ""
   ) +
   theme_light() +
   theme(
-    legend.position = "top"
+    legend.position = "none" # "top"
     , legend.direction  = "horizontal"
     , legend.title = element_text(size=7)
     , axis.title.x = element_text(size=10, face = "bold")
     , axis.title.y = element_blank()
     , axis.text.x = element_blank()
+    , axis.ticks.x = element_blank()
     , panel.grid.major = element_blank()
     , panel.grid.minor = element_blank()
+    , strip.text = element_text(color = "black", face = "bold", size = 9)
   ) +
   guides(
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
@@ -2637,7 +2663,7 @@ ggplot(data = constrained_by_scnro_ls_hionly_long) +
     , legend.title = element_text(size=7)
     , axis.title = element_text(size=9)
     , axis.text.x = element_blank()
-    
+    , strip.text = element_text(color = "black", face = "bold", size = 10) 
   )
 ```
 
@@ -3128,6 +3154,7 @@ ggplot() +
     , axis.text = element_text(size = 7)
     , panel.grid = element_blank()
     , plot.subtitle = ggtext::element_markdown(size = 10)
+    , strip.text = element_text(color = "black", face = "bold", size = 10)
   )
 ```
 
