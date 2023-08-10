@@ -466,8 +466,8 @@ constrained_by_scnro_ls_pa <-
     , pct_covertype_area = covertype_area_ha/feature_area_ha
     # calculate level of constraint
       , cnstrnt_lvl = dplyr::case_when(
-          -pct_rdctn_total >= 0.85 ~ 1
-          , -pct_rdctn_total >= 0.65 ~ 2
+          -pct_rdctn_total > 0.8 ~ 1
+          , -pct_rdctn_total >= 0.6 ~ 2
           , -pct_rdctn_total >= 0.0 ~ 3
         )
       , cnstrnt_class = factor(
@@ -479,7 +479,7 @@ constrained_by_scnro_ls_pa <-
       , rmn_cnstrnt_class = factor(
           cnstrnt_lvl 
           , levels = 1:3
-          , labels = c("0–15% treatable", "16–35% treatable", ">35% treatable")
+          , labels = c("0–19% treatable", "20–40% treatable", ">40% treatable")
           , ordered = T
         ) %>% forcats::fct_rev()
       # scenario description
@@ -1378,9 +1378,9 @@ ggplot() +
 
 Based on model simulations of how much area generally needs to be treated to influence wildfire behavior, we binned the firesheds into three classes of mechanical constraint: 
 
-* **high** (85–100% [i.e., only 0–15% is available for mechanical treatment]): fuels treatment would principally need to rely on fire
-* **medium** (65– 84%): could use a combination of fire and mechanical thinning
-* **low** (65%): could effectively influence wildfire behavior with mechanical treatment alone
+* **high** (81–100% [i.e., only 0–19% is available for mechanical treatment]): fuels treatment would principally need to rely on fire
+* **medium** (60–80% [i.e., 20–40% is available]): could use a combination of fire and mechanical thinning
+* **low** (60% [i.e., >40% is available]): could effectively influence wildfire behavior with mechanical treatment alone
 
 ### Distribution of Fireshed PA Constraint
 
@@ -2283,6 +2283,60 @@ landscape_basemap_fn(16) +
   ) +
   theme(
     plot.subtitle = element_text(size = 8)
+  ) +
+  guides(
+    color = "none"
+    , fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
+  )
+################
+# multiples
+ggplot() + 
+  geom_sf(
+      data = cnstrnt_class_patches %>%
+        dplyr::filter(
+          scenario_id == 1
+          & patch_area_rank == 1
+          & cnstrnt_class != "med. constraint"
+        )
+      , aes(color = cnstrnt_class, fill = cnstrnt_class), lwd = 1.4
+      , inherit.aes = F
+      , alpha = 0.5
+      # , show.legend = F
+    ) +
+  geom_sf(
+    data = wf_landscapes
+    , fill = NA, color = "black", lwd = 0.3
+    , inherit.aes = F
+  ) +
+  scale_color_manual(values = cols_rdylbu_dk, drop = F) +
+  scale_fill_manual(values = cols_rdylbu_lt) +
+  coord_sf(
+    expand = FALSE
+  ) +
+  facet_wrap(
+    facets = vars(area_name)
+    , ncol = 3
+    , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+    # , scales = "free"
+  ) +
+  labs(
+    color = "Level of\nConstraint"
+    , fill = "Level of\nConstraint"
+    , subtitle = "largest patch of contiguous fireshed project areas classified by level of mechanical constraint" # largest patch of spatially adjacent...
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "bottom"
+    , legend.direction  = "horizontal"
+    , legend.title = element_text(size=7)
+    , legend.margin = margin(c(-10,0,0,0))
+    , plot.title = element_text(size = 11)
+    , strip.text = element_text(color = "black", face = "bold")
+    , axis.title = element_blank()
+    , axis.text = element_blank()
+    , axis.ticks = element_blank()
+    , panel.grid = element_blank()
+    , plot.margin = margin(0, 0, 0, 0, "cm")
   ) +
   guides(
     color = "none"
@@ -4397,7 +4451,7 @@ constrained_by_scnro_ls_pa %>%
   dplyr::arrange(comp_13) %>% 
   View()
 #####
-long_txt <- "priority landscape divided into fireshed project areas. Shadings indicate percentages of the total combined forest and shrubland acres that are available for mechanical treatment: high (85–100% constrained; 0 –15% available for mechanical treatment), medium (65–84% constrained; 16–35% available), and low (0–64% constrained; 36–100% available)."
+long_txt <- "priority landscape divided into fireshed project areas. Shadings indicate percentages of the total combined forest and shrubland acres that are available for mechanical treatment: high (81–100% constrained; 0–19% available for mechanical treatment), medium (60–80% constrained; 20–40% available), and low (0–60% constrained; 41–100% available)."
 
 text_this_fn <- function(row_num) {
   paste0(
