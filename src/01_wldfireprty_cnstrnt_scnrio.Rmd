@@ -1322,6 +1322,121 @@ ggplot2::ggsave(
   )
 ```
 
+Adding in bar for remaining area:
+
+```{r ls-rdctn-rmn-plt, fig.height=10}
+# palette
+cols_cnstrnt_avail <- c("#7A0403","#466BE3")
+
+constrained_by_scnro_ls_long %>% 
+  dplyr::mutate(
+    constraint = forcats::fct_recode(constraint,"Available"="Total")
+    , pct_rdctn_hack = ifelse(constraint=="Available", 1+pct_rdctn, pct_rdctn)
+  ) %>% 
+  dplyr::mutate(
+    dplyr::across(
+      c(constraint)
+      , ~ forcats::fct_rev(.x)
+    )
+  ) %>% 
+# plot
+ggplot(
+  mapping = aes(
+    y = scenario_lab
+    , x = pct_rdctn_hack
+    , fill = constraint
+    , group = constraint
+  )
+) +
+  geom_col(
+    width = 0.7, alpha = 0.9
+  ) +
+  geom_vline(xintercept = 0, color = "gray55", linetype = "solid", linewidth = 0.7) +
+  geom_text(
+    mapping = aes(
+      label = scales::percent(
+        ifelse(pct_rdctn<0.145*-1 & constraint!="Available",pct_rdctn*-1,NA)
+        , accuracy = 1
+      )
+      , group = constraint
+      , fontface = "bold"
+    )
+    , position = position_stack(vjust = 0.5)
+    , color = "black", size = 1.8
+  ) +
+  geom_text(
+    mapping = aes(
+      label = scales::percent(
+        ifelse(constraint=="Available",pct_rdctn_hack,NA)
+        , accuracy = 1
+      )
+      , group = constraint
+      , fontface = "bold"
+    )
+    , color = "black", size = 2.7
+    , hjust = -0.1
+  ) +
+  annotate(
+    geom = "text"
+    , x = -0.78
+    , y = 0
+    , label = "constrained"
+    , color = cols_cnstrnt_avail[1]
+    , fontface = "bold"
+    , size = 2.5
+  ) +
+  annotate(
+    geom = "text"
+    , x = 0.88
+    , y = 0
+    , label = "available"
+    , color = cols_cnstrnt_avail[2]
+    , fontface = "bold"
+    , size = 2.5
+  ) +
+  scale_fill_manual(values = c(rev(plasma_custom), cols_cnstrnt_avail[2])) +
+  scale_x_continuous(
+    limits = c(-1.00,1.02)
+    , labels = scales::percent_format()
+  ) +
+  scale_y_discrete(expand = expansion(mult = c(0.8,0.3))) +
+  facet_wrap(
+    facets = vars(area_name)
+    , ncol = 3
+    , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+    , scales = "free_y"
+  ) +
+  labs(
+    fill = ""
+    , x = "Percent of Forest & Shrub Area in Overall Landscape" # "Largest Patch % of Landscape Area"
+    , subtitle = "" 
+    , y = ""
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "top"
+    , legend.direction  = "horizontal"
+    , legend.title = element_text(size=7)
+    , axis.title.x = element_text(size=10, face = "bold")
+    , axis.title.y = element_blank()
+    , axis.text.x = element_blank()
+    , axis.ticks.x = element_blank()
+    , panel.grid.major = element_blank()
+    , panel.grid.minor = element_blank()
+    , strip.text = element_text(color = "black", face = "bold", size = 9)
+  ) +
+  guides(fill = guide_legend(nrow = 1))
+# export
+ggplot2::ggsave(
+    filename = paste0("../data/plt_cnstrnt_avail.png")
+    , plot = ggplot2::last_plot()
+    , width = 8.5
+    , height = 11
+    , units = "in"
+    , dpi = "print"
+  )
+```
+
 ```{r ls-rdctn-plt1, fig.height=9, include=FALSE, eval=FALSE}
 # plot
 ggplot() +
@@ -2385,7 +2500,7 @@ ggplot(
   geom_col(
     width = 0.7, alpha = 0.9
   ) +
-  geom_vline(xintercept = 0, color = "gray55", linetype = "solid", linewidth = 1.1) +
+  geom_vline(xintercept = 0, color = "gray55", linetype = "solid", linewidth = 0.7) +
   geom_text(
     mapping = aes(
       label = ifelse(
@@ -2414,7 +2529,7 @@ ggplot(
   ) +
   annotate(
     geom = "text"
-    , x = -0.77
+    , x = -0.74
     , y = 0
     , label = "high constraint"
     , color = cols_rdylbu_lt[3]
@@ -2423,7 +2538,7 @@ ggplot(
   ) +
   annotate(
     geom = "text"
-    , x = 0.86
+    , x = 0.84
     , y = 0
     , label = "low constraint"
     , color = cols_rdylbu_lt[1]
@@ -2446,8 +2561,8 @@ ggplot(
   ) +
   labs(
     fill = "Level of\nConstraint"
-    , subtitle = "percentage of total landscape area comprised by the largest patch" # "Largest Patch % of Landscape Area"
-    , x = "" # "Largest Patch % of Landscape Area"
+    , subtitle = "" # "percentage of total landscape area comprised by the largest patch" # "Largest Patch % of Landscape Area"
+    , x = "Percent of Overall Landscape Area Comprised by the Largest Patch" # "Largest Patch % of Landscape Area"
     , y = ""
   ) +
   theme_light() +
@@ -2465,6 +2580,15 @@ ggplot(
   ) +
   guides(
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
+  )
+# export
+ggplot2::ggsave(
+    filename = paste0("../data/plt_lrgst_patch_index.png")
+    , plot = ggplot2::last_plot()
+    , width = 8.5
+    , height = 11
+    , units = "in"
+    , dpi = "print"
   )
 ```
 
@@ -4413,6 +4537,26 @@ gc()
 
 
 ```{r, include=FALSE, eval=FALSE}
+# avg and total areas
+constrained_by_scnro_ls %>% 
+    dplyr::filter(scenario_id==1) %>%
+    dplyr::summarise(
+      dplyr::across(
+        tidyselect::ends_with("_ha")
+        , list(sum = sum, mean = mean)
+      )
+    ) %>% 
+    dplyr::mutate(
+      dplyr::across(
+        tidyselect::contains("_ha_")
+        , ~ scales::comma(.x, accuracy = 1)
+      )
+    ) %>% 
+  # dplyr::select(area_name,tidyselect::ends_with("_ha")) %>% 
+  
+  View()
+
+
 ### back of napkin calcs for report
 constrained_by_scnro_ls %>% 
   dplyr::select(area_name, scenario_id, pct_rmn5_administrative) %>% 
