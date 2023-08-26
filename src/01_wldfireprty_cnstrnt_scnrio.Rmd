@@ -712,6 +712,16 @@ plt_basemap +
   )
 # plot
 plt_fshed
+ggplot2::ggsave(
+    filename = paste0("../data/plt_map_ls_fshed.png")
+    , plot = ggplot2::last_plot()
+    , width = 8.5
+    , height = 11
+    , units = "in"
+    , dpi = "print"
+    , bg = "white"
+  )
+
 ```
 
 The boundaries of the 21 priority landscapes roughly follow the boundaries of "firesheds" prioritized to reduce wildfire transmission to developed areas (Figure 1). Firesheds are geographic delineations with an average area of approximately 250,000 acres (~100,000 hectares) that were created to organize the landscape into units for managing wildfire risk to communities.
@@ -1203,7 +1213,7 @@ ggplot(
 
 ### Reduction by Constraint{#ls-rdctn-cnstrnt}
 
-```{r ls-rdctn, fig.height=8}
+```{r ls-rdctn}
 # reshape
 constrained_by_scnro_ls_long <- constrained_by_scnro_ls %>%
   dplyr::select(state, name, area_name, tidyselect::starts_with("scenario_"), tidyselect::starts_with("pct_rdctn")) %>% 
@@ -1408,7 +1418,7 @@ ggplot(
   ) +
   labs(
     fill = ""
-    , x = "Percent of Forest & Shrub Area in Overall Landscape" # "Largest Patch % of Landscape Area"
+    , x = "Percent of Forest & Shrub Area in Overall Landscape" 
     , subtitle = "" 
     , y = ""
   ) +
@@ -1537,19 +1547,28 @@ ggplot() +
   labs(
     fill = "Level of\nConstraint"
     , y = ""
-    , x = "% of Fireshed\nProject Areas"
+    , x = "Percent of Fireshed Project Areas"
   ) +
   theme_light() +
   theme(
     legend.position = "top"
     , legend.title = element_text(size=7)
-    , axis.title = element_text(size=9)
     , axis.text.x = element_text(size=7)
+    , axis.title.x = element_text(size=10, face = "bold")
     , strip.text = element_text(color = "black", face = "bold")
   ) +
   guides(
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
   )
+ggplot2::ggsave(
+    filename = paste0("../data/plt_fpa_cnstrnt_dist.png")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 8.5
+    , units = "in"
+    , dpi = "print"
+  )
+
 ```
 
 ### Distribution of Fireshed Area
@@ -2293,10 +2312,11 @@ largest_patch_map_fn <- function(nrow = 1){
       scale_color_manual(values = cols_rdylbu_dk, drop = F) +
       labs(
         color = "Level of\nConstraint"
-        , subtitle = "largest patch of contiguous fireshed project areas classified by level of mechanical constraint" # largest patch of spatially adjacent...
+        , subtitle = "largest patch of interconnected fireshed project areas by level of mechanical constraint" # largest patch of spatially adjacent...
       ) +
       theme(
-        plot.subtitle = element_text(size = 8)
+        # plot.subtitle = element_text(size = 8)
+        plot.subtitle = element_blank()
       ) +
       guides(
         color = "none"
@@ -2314,6 +2334,20 @@ plt_ptch_list <- 1:length(area_nm_list) %>%
   purrr::map(largest_patch_map_fn)
 # scenario_maps
 plt_ptch_list[]
+# save
+1:length(plt_ptch_list) %>% 
+  purrr::map(function(x){
+      ggplot2::ggsave(
+          filename = paste0("../data/","plt_map_patch_fpa_",x,".png")
+          , plot = plt_ptch_list[[x]] # ggplot2::last_plot()
+          , width = 11
+          , height = 8.5
+          , units = "in"
+          , dpi = "print"
+          , bg = "white"
+        )
+    }
+  )
 ```
 
 
@@ -2529,7 +2563,7 @@ ggplot(
   ) +
   annotate(
     geom = "text"
-    , x = -0.74
+    , x = -0.73
     , y = 0
     , label = "high constraint"
     , color = cols_rdylbu_lt[3]
@@ -2538,7 +2572,7 @@ ggplot(
   ) +
   annotate(
     geom = "text"
-    , x = 0.84
+    , x = 0.92
     , y = 0
     , label = "low constraint"
     , color = cols_rdylbu_lt[1]
@@ -2547,7 +2581,7 @@ ggplot(
   ) +
   scale_fill_manual(values = cols_rdylbu_lt) +
   scale_x_continuous(
-    limits = c(-1.05,1.13)
+    limits = c(-1.05,1.22)
     , labels = scales::percent_format()
     # , expand = expansion(mult = c(0, 0.1))
     # , breaks = scales::extended_breaks(5)
@@ -3651,7 +3685,7 @@ plt <- ggplot(
     legend.position = "top"
     , legend.direction  = "horizontal"
     , legend.title = element_text(size=7)
-    , axis.title = element_text(size=8)
+    , axis.title.x = element_text(size=9, face = "bold")
     , axis.text.x = element_blank()
     , axis.ticks.x = element_blank()
     , axis.text = element_text(size = 8)
@@ -4189,18 +4223,27 @@ ggplot(
   labs(
     fill = "NLCD\nCover\nType"
     , y = ""
-    , x = "% Landscape Area"
+    , x = "Percent of Overall Landscape Area"
   ) +
   theme_light() +
   theme(
     legend.position = "top" # c(0.9, 0.9)
     , legend.title = element_text(size=9)
-    , axis.title = element_text(size=9)
     , axis.text.x = element_text(size=7)
+    , axis.title.x = element_text(size=10, face = "bold")
   ) +
   guides(
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
   )
+ggplot2::ggsave(
+    filename = paste0("../data/plt_nlcd_area_ls.png")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 8.5
+    , units = "in"
+    , dpi = "print"
+  )
+
   
 ```
 
@@ -4556,8 +4599,41 @@ constrained_by_scnro_ls %>%
   
   View()
 
+####patches
+# aggregate to constraint class level
+cnstrnt_class_patches %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::group_by(area_name, scenario_lab, cnstrnt_class) %>% 
+  dplyr::summarize(
+    max_pct_patch_landscape = max(pct_patch_landscape, na.rm = T)
+  ) %>% 
+  dplyr::ungroup() %>%
+  dplyr::filter(
+    cnstrnt_class!="med. constraint"
+  ) %>% 
+  dplyr::mutate(
+    cnstrnt_class = stringr::str_replace_all(cnstrnt_class," ","_")
+  ) %>% 
+  tidyr::pivot_wider(
+    id_cols = c(area_name,scenario_lab)
+    , names_from = cnstrnt_class
+    , values_from = max_pct_patch_landscape
+    , values_fill = 0
+  ) %>% 
+  dplyr::relocate(low_constraint, .after = high_constraint) %>% 
+  dplyr::mutate(high_is_big = high_constraint>low_constraint) %>% 
+  dplyr::arrange(
+    area_name
+    , desc(scenario_lab)
+    # , desc(high_constraint)
+    , desc(low_constraint)
+  ) %>% 
+  # dplyr::group_by(scenario_lab) %>% 
+  # dplyr::summarise(dplyr::across(c(high_constraint,low_constraint), mean)) %>% 
+  View()
 
 ### back of napkin calcs for report
+# change in overall available acreage across scenarios
 constrained_by_scnro_ls %>% 
   dplyr::select(area_name, scenario_id, pct_rmn5_administrative) %>% 
   tidyr::pivot_wider(
@@ -4573,6 +4649,7 @@ constrained_by_scnro_ls %>%
   dplyr::arrange(comp_13) %>% 
   View()
 ### back of napkin calcs for report
+# change in lightly constrained acreage across scenarios
 constrained_by_scnro_ls_pa %>% 
   dplyr::count(area_name,scenario_id,cnstrnt_class) %>% 
   dplyr::group_by(area_name,scenario_id) %>% 
@@ -4595,11 +4672,11 @@ constrained_by_scnro_ls_pa %>%
   dplyr::arrange(comp_13) %>% 
   View()
 #####
-long_txt <- "priority landscape divided into fireshed project areas. Shadings indicate percentages of the total combined forest and shrubland acres that are available for mechanical treatment: high (81–100% constrained; 0–19% available for mechanical treatment), medium (60–80% constrained; 20–40% available), and low (0–60% constrained; 41–100% available)."
+long_txt <- "priority landscape divided into fireshed project areas. Shadings indicate percentages of the total combined forest and shrubland acres that are available for mechanical treatment: high (81–100% constrained; 0–19% available for mechanical treatment), medium (60–80% constrained; 20–40% available), and low (0–59% constrained; 41–100% available). The largest patch of interconnected fireshed project areas classified as highly and lightly constrained are highlighted."
 
 text_this_fn <- function(row_num) {
   paste0(
-    "Figure A"
+    "Figure B"
     , row_num+1
     , ". "
     , wf_landscapes %>% 
