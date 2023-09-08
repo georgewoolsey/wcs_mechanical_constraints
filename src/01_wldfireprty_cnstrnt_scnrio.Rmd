@@ -165,22 +165,23 @@ wf_landscapes <- sf::read_sf("../data/Wildfire_Crisis_Strategy_Landscapes/Wildfi
 
 ### Load landscape-level constraint data
 
-Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was created via this [Google Earth Engine script](https://code.earthengine.google.com/2b330779ad5c813bdd40bde765c4b079?noload=true).
+Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was created via this [Google Earth Engine script](https://code.earthengine.google.com/692417f7747e247fc0545824135a0355?noload=true).
 
 ```{r ls-cnstrnt-dta, results='hide'}
 # load landscape constraint scenario data
-constrained_by_scnro_ls <- list.files("../data/wildfirepriority/all_slp/",pattern = "\\.csv$") %>%
-  purrr::keep(stringr::str_starts(.,"wfpriority_all_slp_sc")) %>% 
+constrained_by_scnro_ls <-
+  list.files("../data/wildfirepriority/landscapes/",pattern = "\\.csv$") %>%
+  purrr::keep(stringr::str_starts(.,"wfpriority_all_sc")) %>% 
   purrr::map(function(x){
     readr::read_csv(
-      paste0("../data/wildfirepriority/all_slp/",x)
+      paste0("../data/wildfirepriority/landscapes/",x)
       , name_repair = "universal"
       , col_types = cols(.default = "c")
     ) %>% 
     dplyr::rename_with(tolower) %>% 
     dplyr::rename_with(make.names) %>% 
     dplyr::select(state,name,tidyselect::ends_with("_m2"),tidyselect::starts_with("pct_")) %>% 
-    dplyr::mutate(scenario_id = stringr::word(x,4,sep="_") %>% readr::parse_number()) %>% 
+    dplyr::mutate(scenario_id = stringr::word(x,3,sep="_") %>% readr::parse_number()) %>% 
     dplyr::relocate(scenario_id)
   }) %>%
   dplyr::bind_rows() %>%
@@ -1830,7 +1831,6 @@ mapview::mapview(
 # **Scenario 2 used for map above**
 ```
 
-
 ### Map of Fireshed Project Areas by Scenario
 
 ```{r map-pa-cnstrnt, fig.height=8, warning=F,results='hide'}
@@ -1902,12 +1902,15 @@ plt_fpas_sc_map
 
 ### Map Fireshed Project Areas by Scenario and Landscape
 
-How do small multiple maps of scenarios look?
+Define function to map each landscape separately with project areas highlighted by level of constraint. This function is used below to create figures with largest patch highlighted.
 
-*the answer is: bad*
-see [this post](https://jayrobwilliams.com/posts/2021/05/geom-sf-facet) about small multiple maps
-
-```{r scenario-maps, fig.height=7, include=T, eval=F}
+```{r scenario-maps, fig.height=7, include=F, eval=F}
+#####################################################
+# How do small multiple maps of scenarios look?
+# 
+# *the answer is: bad*
+# see [this post](https://jayrobwilliams.com/posts/2021/05/geom-sf-facet) about small multiple maps
+#####################################################
 area_nm_list <- sort(unique(constrained_by_scnro_ls$area_name))
 facet_map_fn <- function(row_n=1) {
   plt <- ggplot() +
@@ -1978,11 +1981,11 @@ plt_list[16]
 # plt_list
 ```
 
-Make each plot individually by landscape
-
-```{r scenario-maps2, eval=T, include=T}
+```{r scenario-maps-fn, eval=T, include=T}
 #########################################################################
 #########################################################################
+# Make each plot individually by landscape as solution to small multiples
+# this block defines function
 #########################################################################
 ##################hack to align plots for ggmap
 ggmap_bbox_fn <- function(map, my_crs=3857) {
@@ -2174,7 +2177,8 @@ scenario_cnstrnt_map_fn <- function(row_n = 1) {
 # scenario_cnstrnt_map_fn(row_n = 9)
 ```
 
-```{r scenario-maps-print, eval=T, include=T}
+```{r scenario-maps-print, eval=F, include=T}
+# same output with map of each landscape by scenario but without largest patch highlighted
 # go through list of areas to make plot
 plt_list <- 1:length(area_nm_list) %>%
   purrr::map(scenario_cnstrnt_map_fn)

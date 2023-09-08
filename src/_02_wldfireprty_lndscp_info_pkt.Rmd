@@ -1,0 +1,1801 @@
+# Scenario Analysis: WCS Priority Landscapes
+
+```{r, include=FALSE, warning=F, message=F}
+# knit options
+knitr::opts_chunk$set(
+  echo = TRUE
+  , warning = FALSE
+  , message = FALSE
+  , results='hide'
+  , fig.width = 10
+  , fig.height = 8
+)
+# bread-and-butter
+library(tidyverse)
+library(lubridate)
+library(viridis)
+library(scales)
+library(latex2exp)
+# visualization
+library(kableExtra)
+library(cowplot)
+library(RColorBrewer)
+library(ggtext)
+library(mapview) #Interactive maps
+library(leafpop) #map html popup
+library(tidytext) # reorder within facets
+library(ggtext) # color text in ggplot
+# spatial analysis
+library(sf)
+library(USAboundaries)
+library(ggmap) # nice ggplot maps
+library(terra)
+# set seed
+set.seed(11)
+```
+
+```{r, results='hide'}
+# turn off the s2 processing 
+## https://stackoverflow.com/questions/68478179/how-to-resolve-spherical-geometry-failures-when-joining-spatial-data
+sf::sf_use_s2(FALSE)
+```
+
+See the USFS [Wildfire Crisis Strategy]((https://www.fs.usda.gov/managing-land/wildfire-crisis)) (WCS) document for background information.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls())
+gc()
+```
+
+## Data Preparation
+
+### Load WCS landscapes
+
+WCS priority landscape spatial data from the  [USFS Geospatial Data Discovery](https://data-usfs.hub.arcgis.com/datasets/wildfire-crisis-strategy-landscapes-feature-layer/explore) site (accessed 2023-04-04).
+
+```{r wcs-ls-dta, results='hide'}
+# load data
+wf_landscapes <- sf::read_sf("../data/Wildfire_Crisis_Strategy_Landscapes/Wildfire_Crisis_Strategy_Landscapes_(Feature_Layer).shp") %>% 
+  dplyr::rename_with(tolower) %>% 
+  sf::st_make_valid() %>% 
+  dplyr::mutate(
+    hectares = (as.numeric(sf::st_area(geometry))/10000) 
+    , Mil.Hectares = hectares %>% 
+      scales::comma(suffix = " M", scale = 1e-6, accuracy = .01)
+    , acres = (as.numeric(sf::st_area(geometry))/4046.85642) 
+    , Mil.Acres = acres %>% 
+      scales::comma(suffix = " M", scale = 1e-6, accuracy = .01)
+  ) %>% 
+  dplyr::left_join(
+    data.frame(state = datasets::state.name, state_abb = datasets::state.abb)
+    , by = join_by("state")
+  ) %>% 
+  dplyr::mutate(
+    area_name = paste0(
+      ifelse(is.na(state_abb) | state_abb == "", "UNK", state_abb)
+      , ": "
+      , name
+    )
+  ) %>% 
+  # manual label placement
+  dplyr::left_join(
+    readr::read_csv("../data/wildfirepriority/area_label_placement.csv")
+    , by = dplyr::join_by("area_name")
+  )
+#rename sf geom column
+  names(wf_landscapes)[names(wf_landscapes)==tolower(attr(wf_landscapes, "sf_column"))] = "geometry"
+  sf::st_geometry(wf_landscapes) = "geometry"
+# set crs
+  transform_crs <- sf::st_crs(wf_landscapes)
+# view
+  wf_landscapes %>% dplyr::glimpse()
+```
+
+### Load landscape-level constraint data
+
+Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was created via this [Google Earth Engine script](https://code.earthengine.google.com/692417f7747e247fc0545824135a0355?noload=true).
+
+```{r ls-cnstrnt-dta, results='hide'}
+# load landscape constraint scenario data
+constrained_by_scnro_ls <-
+  list.files("../data/wildfirepriority/landscapes/",pattern = "\\.csv$") %>%
+  purrr::keep(stringr::str_starts(.,"wfpriority_all_sc")) %>% 
+  purrr::map(function(x){
+    readr::read_csv(
+      paste0("../data/wildfirepriority/landscapes/",x)
+      , name_repair = "universal"
+      , col_types = cols(.default = "c")
+    ) %>% 
+    dplyr::rename_with(tolower) %>% 
+    dplyr::rename_with(make.names) %>% 
+    dplyr::select(state,name,tidyselect::ends_with("_m2"),tidyselect::starts_with("pct_")) %>% 
+    dplyr::mutate(scenario_id = stringr::word(x,3,sep="_") %>% readr::parse_number()) %>% 
+    dplyr::relocate(scenario_id)
+  }) %>%
+  dplyr::bind_rows() %>%
+  dplyr::inner_join(
+    wf_landscapes %>%
+      sf::st_drop_geometry() %>%
+      dplyr::select(state,name,area_name)
+    , by = dplyr::join_by(state,name)
+  ) %>%
+  dplyr::relocate(area_name,.after = "scenario_id") %>%
+  dplyr::group_by(area_name,scenario_id) %>%
+  dplyr::filter(dplyr::row_number()==1) %>%
+  dplyr::ungroup() %>%
+  dplyr::mutate(
+    dplyr::across(
+      tidyselect::ends_with("_m2")
+      , ~ as.numeric(.x) / 10000
+    )
+    , dplyr::across(
+      tidyselect::starts_with("pct_")
+      , ~ as.numeric(.x)
+    )
+  ) %>%
+  dplyr::rename_with(
+    ~ gsub("_m2", "_ha", .x)
+    , tidyselect::ends_with("_m2")
+  ) %>%
+  # calculate pct reduction
+  dplyr::mutate(
+    pct_rdctn1_protected = -1*(1 - pct_rmn1_protected)
+    , pct_rdctn2_slope = -1*(pct_rmn1_protected - pct_rmn2_slope)
+    , pct_rdctn3_roads = -1*(pct_rmn2_slope - pct_rmn3_roads)
+    , pct_rdctn4_riparian = -1*(pct_rmn3_roads - pct_rmn4_riparian)
+    , pct_rdctn5_administrative = -1*(pct_rmn4_riparian - pct_rmn5_administrative)
+    , pct_rdctn_total = -1*(1 - pct_rmn5_administrative)
+    , pct_covertype_area = covertype_area_ha/feature_area_ha
+    # scenario description
+    , scenario_lab = factor(
+      scenario_id
+      , levels = 1:3
+      , labels = paste0("Scenario ", 1:3)
+      , ordered = T
+    ) %>% forcats::fct_rev()
+    , scenario_desc = factor(
+      scenario_id
+      , levels = 1:3
+      , labels = c("Scenario 1\n(status quo)", "Scenario 2\n(slopes+roads)", "Scenario 3\n(slopes+roads+admin)")
+      , ordered = T
+    )
+  )
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+### Load fireshed project area data
+
+The fireshed registry spatial data was obtained from the USFS Geospatial Data Discovery tool for [firesheds](https://data-usfs.hub.arcgis.com/datasets/fireshed-registry-fireshed-feature-layer/explore) and [project areas](https://data-usfs.hub.arcgis.com/datasets/fireshed-registry-project-area-feature-layer/explore) (accessed 2023-05-03).
+
+See [this section](#fsheds) for exploration of fireshed and project area spatial data
+
+```{r fshed-spatial}
+### fireshed spatial data
+fireshed <- sf::st_read("../data/firesheds/Fireshed_Registry3A_Fireshed/Fireshed_Registry%3A_Fireshed_(Feature_Layer).shp") %>%
+  sf::st_transform(transform_crs) %>% 
+  setNames(c(
+      "shape_id"
+      , "area_ha"
+      , "fireshed_id"
+      , "fireshed_name"
+      , "fireshed_code"
+      , "fireshed_state"
+      , "nopas"
+      , "objectid"
+      , "fshed_id"
+      , "exp_total"
+      , "exp_usfs"
+      , "exp_nonfs"
+      , "exp_usfs_protected"
+      , "exp_nonfs_protected"
+      , "exp_usfs_managed"
+      , "exp_nonfs_managed"
+      , "exp_usfs_forest"
+      , "exp_nonfs_forest"
+      , "exp_usfs_nonforest"
+      , "exp_nonfs_nonforest"
+      , "exp_usfs_conifer"
+      , "exp_nonfs_conifer"
+      , "exp_usfs_managedforest"
+      , "exp_nonfs_managedforest"
+      , "exp_usfs_managedconifer"
+      , "exp_nonfs_managedconifer"
+      , "exp_nonfs_nonconifer_hihaz"
+      , "dist_vs"
+      , "crisis_strategy"
+      , "key_preformance_indicator"
+      , "national_usfs_rank"
+      , "national_all_land_rank"
+      , "regional_usfs_rank"
+      , "regional_all_land_rank"
+      , "start_date"
+      , "end_date"
+      , "geometry"
+  )) %>% 
+  dplyr::mutate(
+    exposure_pct_rank = dplyr::percent_rank(exp_total)
+    , exposure_pct_rank_grp = dplyr::case_when(
+      exposure_pct_rank >= 1-0.01 ~ "Top 1%"
+      , exposure_pct_rank >= 1-0.05 ~ "Top 5%"
+      , exposure_pct_rank >= 1-0.10 ~ "Top 10%"
+      , exposure_pct_rank >= 1-0.25 ~ "Top 25%"
+      , TRUE ~ "Bottom 75%"
+    ) %>% 
+    factor(
+      levels = c("Top 1%","Top 5%","Top 10%","Top 25%","Bottom 75%")
+      , ordered = T
+    )
+    # there is also a national_all_land_rank column
+    , ntllandrank_pct_rank = dplyr::percent_rank(-national_all_land_rank)
+    , ntllandrank_pct_rank_grp = dplyr::case_when(
+        ntllandrank_pct_rank >= 1-0.01 ~ "Top 1%"
+        , ntllandrank_pct_rank >= 1-0.05 ~ "Top 5%"
+        , ntllandrank_pct_rank >= 1-0.10 ~ "Top 10%"
+        , ntllandrank_pct_rank >= 1-0.25 ~ "Top 25%"
+        , TRUE ~ "Bottom 75%"
+      ) %>% 
+      factor(
+        levels = c("Top 1%","Top 5%","Top 10%","Top 25%","Bottom 75%")
+        , ordered = T
+      )
+    , crisis_strategy = ifelse(is.na(crisis_strategy),"Not High Risk",crisis_strategy) %>% 
+      as.factor() %>% 
+      forcats::fct_shift()
+  )
+  #rename sf geom column
+    names(fireshed)[names(fireshed)==tolower(attr(fireshed, "sf_column"))] = "geometry"
+    sf::st_geometry(fireshed) = "geometry"
+    # calculate area
+    fireshed <- fireshed %>% 
+      dplyr::mutate(
+        fireshed_area_ha = as.numeric(sf::st_area(geometry))/10000
+        , fireshed_area_acres = (fireshed_area_ha*10000)/4046.85642
+      )
+## fireshed_proj_area spatial data
+fireshed_proj_area <- sf::st_read("../data/firesheds/Fireshed_Registry3A_Project_Area/Fireshed_Registry%3A_Project_Area_(Feature_Layer).shp") %>%
+  sf::st_transform(transform_crs) %>% 
+  setNames(c(
+      "shape_id"
+      , "fireshed_id"
+      , "pa_id"
+      , "pa_area_ha"
+      , "objectid"
+      , "pa_id2"
+      , "fshed_id"
+      , "exp_total"
+      , "exp_usfs"
+      , "exp_nonfs"
+      , "exp_usfs_protected"
+      , "exp_nonfs_protected"
+      , "exp_usfs_managed"
+      , "exp_nonfs_managed"
+      , "exp_usfs_forest"
+      , "exp_nonfs_forest"
+      , "exp_usfs_nonforest"
+      , "exp_nonfs_nonforest"
+      , "exp_usfs_conifer"
+      , "exp_nonfs_conifer"
+      , "exp_usfs_managedforest"
+      , "exp_nonfs_managedforest"
+      , "exp_usfs_managedconifer"
+      , "exp_nonfs_managedconifer"
+      , "exp_nonfs_nonconifer_hihaz"
+      , "dist_vs"
+      , "pctrecentlydisturbed"
+      , "start_date"
+      , "end_date"
+      , "geometry"
+  )) %>% 
+  dplyr::mutate(
+    exposure_pct_rank = dplyr::percent_rank(exp_total)
+    , exposure_pct_rank_grp = dplyr::case_when(
+      exposure_pct_rank >= 1-0.01 ~ "Top 1%"
+      , exposure_pct_rank >= 1-0.05 ~ "Top 5%"
+      , exposure_pct_rank >= 1-0.10 ~ "Top 10%"
+      , exposure_pct_rank >= 1-0.25 ~ "Top 25%"
+      , TRUE ~ "Bottom 75%"
+    ) %>% 
+    factor(
+      levels = c("Top 1%","Top 5%","Top 10%","Top 25%","Bottom 75%")
+      , ordered = T
+    )
+  )
+  #rename sf geom column
+    names(fireshed_proj_area)[names(fireshed_proj_area)==tolower(attr(fireshed_proj_area, "sf_column"))] = "geometry"
+    sf::st_geometry(fireshed_proj_area) = "geometry"
+    # calculate area
+    fireshed_proj_area <- fireshed_proj_area %>% 
+      dplyr::mutate(
+        pa_area_ha = as.numeric(sf::st_area(geometry))/10000
+        , pa_area_acres = (pa_area_ha*10000)/4046.85642
+      ) %>% 
+      # JOIN WITH FIRESHED DATA
+      dplyr::inner_join(
+        fireshed %>%
+          sf::st_drop_geometry() %>%
+          dplyr::select(fireshed_id, crisis_strategy, exp_total
+                        , exposure_pct_rank, exposure_pct_rank_grp
+          ) %>% 
+          dplyr::rename(exposure_total=exp_total) %>% 
+          dplyr::rename_with(
+            ~ paste0("fireshed_",.x)
+            , -c(fireshed_id)
+          )
+        , by = dplyr::join_by(fireshed_id)
+      ) %>%
+      dplyr::select(pa_id,pa_area_ha
+                    ,exp_total,exposure_pct_rank,exposure_pct_rank_grp
+                    , tidyselect::starts_with("fireshed_")
+      ) %>% 
+      dplyr::rename(exposure_total=exp_total) %>%
+      dplyr::rename_with(
+        ~ paste0("pa_", .x, recycle0 = TRUE)
+        , tidyselect::starts_with("exp")
+      )
+```
+
+Fireshed project area constraint analysis data (i.e., row unique by WCS landscape + f.p.a.) was created via this [Google Earth Engine script](https://code.earthengine.google.com/003e3994cfc4c469d52d224225a4b109?noload=true)
+
+```{r fs-ld-dta}
+# load fireshed constraint scenario data
+constrained_by_scnro_ls_pa <-
+  list.files("../data/wildfirepriority/fireshed_slp/",pattern = "\\.csv$") %>%
+  purrr::keep(stringr::str_starts(.,"wfpriority_fireshed_slp_sc")) %>% 
+  purrr::map(function(x){
+    readr::read_csv(
+      paste0("../data/wildfirepriority/fireshed_slp/",x)
+      , name_repair = "universal"
+      , col_types = cols(.default = "c")
+    ) %>% 
+    dplyr::rename_with(tolower) %>% 
+    dplyr::rename_with(make.names) %>% 
+    dplyr::select(state,name,pa_id,tidyselect::ends_with("_m2"),tidyselect::starts_with("pct_")) %>% 
+    dplyr::mutate(scenario_id = stringr::word(x,4,sep="_") %>% readr::parse_number()) %>% 
+    dplyr::relocate(scenario_id)
+  }) %>%
+  dplyr::bind_rows() %>%
+  dplyr::inner_join(
+    wf_landscapes %>%
+      sf::st_drop_geometry() %>%
+      dplyr::select(state,name,area_name)
+    , by = dplyr::join_by(state,name)
+  ) %>%
+  dplyr::relocate(area_name,.after = "scenario_id") %>%
+  dplyr::mutate(
+    dplyr::across(
+      tidyselect::ends_with("_m2")
+      , ~ as.numeric(.x) / 10000
+    )
+    , dplyr::across(
+      tidyselect::starts_with("pct_")
+      , ~ as.numeric(.x)
+    )
+  ) %>%
+  dplyr::rename_with(
+    ~ gsub("_m2", "_ha", .x)
+    , tidyselect::ends_with("_m2")
+  ) %>%
+  dplyr::group_by(area_name,pa_id,scenario_id) %>%
+  dplyr::arrange(desc(pct_pa_intrsct)) %>%
+  dplyr::filter(dplyr::row_number()==1) %>%
+  dplyr::ungroup() %>%
+  dplyr::filter(pct_pa_intrsct>=0.00001) %>%
+  # calculate pct reduction
+  dplyr::mutate(
+    pct_rdctn1_protected = -1*(1 - pct_rmn1_protected)
+    , pct_rdctn2_slope = -1*(pct_rmn1_protected - pct_rmn2_slope)
+    , pct_rdctn3_roads = -1*(pct_rmn2_slope - pct_rmn3_roads)
+    , pct_rdctn4_riparian = -1*(pct_rmn3_roads - pct_rmn4_riparian)
+    , pct_rdctn5_administrative = -1*(pct_rmn4_riparian - pct_rmn5_administrative)
+    , pct_rdctn_total = -1*(1 - pct_rmn5_administrative)
+    , pct_covertype_area = covertype_area_ha/feature_area_ha
+    # calculate level of constraint
+      , cnstrnt_lvl = dplyr::case_when(
+          -pct_rdctn_total > 0.8 ~ 1
+          , -pct_rdctn_total >= 0.6 ~ 2
+          , -pct_rdctn_total >= 0.0 ~ 3
+        )
+      , cnstrnt_class = factor(
+          cnstrnt_lvl 
+          , levels = 1:3
+          , labels = c("high constraint", "med. constraint", "low constraint")
+          , ordered = T
+        ) %>% forcats::fct_rev()
+      , rmn_cnstrnt_class = factor(
+          cnstrnt_lvl 
+          , levels = 1:3
+          , labels = c("0–19% treatable", "20–40% treatable", ">40% treatable")
+          , ordered = T
+        ) %>% forcats::fct_rev()
+      # scenario description
+      , scenario_lab = factor(
+          scenario_id
+          , levels = 1:3
+          , labels = paste0("Scenario ", 1:3)
+          , ordered = T
+        ) %>% forcats::fct_rev()
+      , scenario_desc = factor(
+        scenario_id
+        , levels = 1:3
+        , labels = c("Scenario 1\n(status quo)", "Scenario 2\n(slopes+roads)", "Scenario 3\n(slopes+roads+admin)")
+        , ordered = T
+      )
+  ) %>% 
+  # join with fireshed data
+  dplyr::inner_join(
+    fireshed_proj_area %>%
+      sf::st_drop_geometry() %>%
+      dplyr::select(pa_id, tidyselect::starts_with("pa_exposure"), tidyselect::starts_with("fireshed_")) %>%
+      dplyr::mutate(pa_id=as.character(pa_id))
+    , by = dplyr::join_by(pa_id)
+  )
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+## Landscape Mapping
+
+### Define Basemap
+
+```{r stamen-basemap-fn}
+#########################################################################
+#########################################################################
+# global vars to work with functions below
+#########################################################################
+#########################################################################
+# set crs for working with ggmap
+plt_crs <- 3857
+# list of area names to work over
+area_nm_list <- sort(unique(constrained_by_scnro_ls$area_name))
+# color palette for fill of f.p.a.'s
+cols_rdylbu_lt <- c(
+  "low constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[1]
+  , "med. constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[2]
+  , "high constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[3]
+)
+# function to highlight largest patch with fireshed project areas under
+cols_rdylbu_dk <- c(
+  "low constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[2]
+  , "med. constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[7]
+  , "high constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[10]
+)
+#########################################################################
+#########################################################################
+# Make each plot individually by landscape as solution to small multiples
+# this block defines function
+#########################################################################
+##################hack to align plots for ggmap
+ggmap_bbox_fn <- function(map, my_crs=3857) {
+    if (!inherits(map, "ggmap")) stop("map must be a ggmap object")
+    # Extract the bounding box (in lat/lon) from the ggmap to a numeric vector, 
+    # and set the names to what sf::st_bbox expects:
+    map_bbox <- setNames(unlist(attr(map, "bb")), c("ymin", "xmin", "ymax", "xmax"))
+    # Convert the bbox to an sf polygon, transform it to 3857, 
+    # and convert back to a bbox (convoluted, but it works)
+    bbox_3857 <- st_bbox(st_transform(st_as_sfc(st_bbox(map_bbox, crs = 4326)), my_crs))
+    # Overwrite the bbox of the ggmap object with the transformed coordinates 
+    attr(map, "bb")$ll.lat <- bbox_3857["ymin"]
+    attr(map, "bb")$ll.lon <- bbox_3857["xmin"]
+    attr(map, "bb")$ur.lat <- bbox_3857["ymax"]
+    attr(map, "bb")$ur.lon <- bbox_3857["xmax"]
+    map
+}
+#########################################################################
+#########################################################################
+#########################################################################
+
+# function to plot basemap
+landscape_basemap_fn <- function(row_n=1) {
+  # buffer for smaller areas
+  if_smaller_ha_temp <- wf_landscapes %>% 
+    dplyr::pull(hectares) %>% 
+    quantile(0.45) %>% 
+    purrr::pluck(1)
+  # should zoom in?
+  zoom_level <- dplyr::case_when(
+    area_nm_list[row_n] %in% c(
+      "WA: Colville Northeast Washington Vision"
+      , "CA: Southern California Fireshed Risk Reduction Strategy"
+      ) ~ 7
+    , area_nm_list[row_n] %in% c(
+      "UT: Wasatch"
+      , "CA: Trinity Forest Health and Fire-Resilient Rural Communities"
+      , "ID: Nez Perce-Clearwater-Lower Salmon"
+      , "NV: Sierra and Elko Fronts"
+      , "OR: Mount Hood Forest Health and Fire-Resilient Communities"
+    ) ~ 8
+    , area_nm_list[row_n] %in% c(
+      "CA: Plumas Community Protection"
+      , "CA: North Yuba"
+      , "MT: Kootenai Complex"
+      , "UT: Pine Valley"
+    ) ~ 9
+    , 
+      (wf_landscapes %>% 
+        dplyr::filter(
+            area_name == area_nm_list[row_n]
+        ) %>% 
+        dplyr::pull(hectares) %>% 
+        purrr::pluck(1)
+        <= if_smaller_ha_temp
+      ) ~ 10
+    , TRUE ~ 8
+  )
+  # should buffer extend?
+  buffer_box <- dplyr::case_when(
+    area_nm_list[row_n] %in% c("WA: Colville Northeast Washington Vision") ~ 50000
+    , area_nm_list[row_n] %in% c(
+      "CA: Southern California Fireshed Risk Reduction Strategy"
+      , "ID: Nez Perce-Clearwater-Lower Salmon"
+      , "MT: Kootenai Complex"
+    ) ~ 40000
+    , area_nm_list[row_n] %in% c(
+      "AZ: San Carlos Apache Tribal Forest Protection"
+      , "NV: Sierra and Elko Fronts"
+      , "UT: Pine Valley"
+    ) ~ 21000
+    , area_nm_list[row_n] %in% c(
+      "CA: Plumas Community Protection"
+      , "CA: North Yuba"
+      , "CA: Trinity Forest Health and Fire-Resilient Rural Communities"
+      , "OR: Mount Hood Forest Health and Fire-Resilient Communities"
+    ) ~ 35000
+    , area_nm_list[row_n] %in% c("UT: Wasatch") ~ 5000
+    , 
+      (wf_landscapes %>% 
+        dplyr::filter(
+            area_name == area_nm_list[row_n]
+        ) %>% 
+        dplyr::pull(hectares) %>% 
+        purrr::pluck(1)
+        <= if_smaller_ha_temp
+      ) ~ 15000
+    , TRUE ~ 5000
+  )
+  
+  # bounding box
+  bb_temp <- 
+    # use extent of fireshed project areas
+    fireshed_proj_area %>% 
+    dplyr::select(pa_id, geometry) %>% 
+    dplyr::mutate(pa_id=as.character(pa_id)) %>% 
+    dplyr::inner_join(
+      constrained_by_scnro_ls_pa %>% 
+        dplyr::filter(
+          area_name == area_nm_list[row_n]
+          & pct_pa_intrsct>=0.25
+        )
+      , by = dplyr::join_by("pa_id")
+      , multiple = "first"
+    ) %>% 
+    sf::st_union() %>% 
+    sf::st_transform(crs=5070) %>% 
+    sf::st_buffer(as.numeric(buffer_box)) %>% 
+    sf::st_transform(crs=4326) %>% # same as get_map return
+    sf::st_bbox()
+  # set bbox for get call
+  bbox_temp <- c(
+    bottom = bb_temp[[2]]
+    , top = bb_temp[[4]]
+    , right = bb_temp[[3]]
+    , left = bb_temp[[1]]
+  )
+  # get map
+  hey_ggmap <- ggmap::get_stamenmap(
+    bbox = bbox_temp
+    , zoom = zoom_level
+    , maptype = "terrain" #"toner-hybrid" # "terrain"
+    , crop = T
+  )
+  # ggmap(hey_ggmap)
+  # apply align function
+    hey_ggmap_aligned <- ggmap_bbox_fn(hey_ggmap, plt_crs) # Use the function
+  # plot
+  plt <- ggmap(hey_ggmap_aligned) + 
+    # geom_sf(
+    #   data = wf_landscapes %>% 
+    #     dplyr::filter(
+    #         area_name == area_nm_list[row_n]
+    #       ) %>% 
+    #     sf::st_transform(crs=plt_crs)
+    #   , fill = NA, color = "black", lwd = 0.3
+    #   , inherit.aes = F
+    # ) +
+    coord_sf(
+      expand = FALSE
+    ) +
+    labs(
+      title = "" #area_nm_list[row_n]
+    ) +
+    theme_light() +
+    theme(
+      legend.position =  "top"
+      , legend.direction = "horizontal"
+      , legend.title = element_text(size = 9, face = "bold")
+      , legend.text = element_text(size = 9)
+      , legend.margin = margin(c(0,0,-10,0))
+      , plot.title = element_text(size = 12, hjust = 0.5, face = "bold")
+      , strip.text = element_text(size = 10, color = "black", face = "bold")
+      , axis.title = element_blank()
+      , axis.text = element_blank()
+      , axis.ticks = element_blank()
+      , panel.grid = element_blank()
+      , plot.margin = margin(0, 0, 0, 0, "cm")
+      , plot.caption = element_text(size = 11, color = "black", hjust = 0, vjust = 3)
+    )
+  # return
+  return(plt)
+}
+# landscape_basemap_fn(row_n = 2)
+###### set plot basemap in global function
+# uncomment for testing
+plt_basemap <- landscape_basemap_fn(row_n = 2)
+```
+
+### Plot of Nested Fireshed Spatial Framework
+
+```{r spatial-frmwrk-map-fn}
+# function to plot basemap + spatial framework
+spatial_frmwrk_map_fn <- function(row_n = 1) {
+  # join fireshed project area data to spatial data
+  fireshed_proj_area_dta_temp <- fireshed_proj_area %>% 
+    dplyr::select(pa_id, geometry) %>% 
+    dplyr::mutate(pa_id=as.character(pa_id)) %>% 
+    dplyr::inner_join(
+      constrained_by_scnro_ls_pa %>% 
+        dplyr::filter(
+          area_name == area_nm_list[row_n]
+          & pct_pa_intrsct>=0.25
+        )
+      , by = dplyr::join_by("pa_id")
+      , multiple = "first"
+    ) 
+  # aggregate for note
+  sum_dta_temp <- fireshed_proj_area_dta_temp %>% 
+    sf::st_drop_geometry() %>% 
+    dplyr::filter(fireshed_crisis_strategy %in% c("USFS-Only", "All-Lands")) %>% 
+    dplyr::summarise(total_area_ha = sum(feature_area_ha)) %>% 
+    dplyr::mutate(total_area_acres = (total_area_ha*10000)/4046.85642) %>% 
+    dplyr::mutate(
+      dplyr::across(
+        tidyselect::starts_with("total_area")
+        , ~ scales::comma(.x, suffix = "k", scale = 1e-3, accuracy = 1)
+      )
+    )
+  # plot
+  plt <- plt_basemap +
+    geom_sf(data = fireshed_proj_area_dta_temp %>% 
+        sf::st_transform(crs=plt_crs)
+      , aes(fill = fireshed_crisis_strategy, color = "Project Area\nboundary")
+      , alpha = 0.8
+      , lwd = 1.3
+      , inherit.aes = F
+    ) +
+    geom_sf(
+      data = fireshed %>%
+        sf::st_filter(
+          wf_landscapes %>%
+            dplyr::filter(area_name == area_nm_list[row_n]) %>% 
+            dplyr::select(area_name)
+          , .predicate=st_intersects
+        ) %>% 
+        sf::st_transform(crs=plt_crs)
+      , aes(color = "Fireshed\nboundary")
+      , fill = NA
+      , lwd = 1.2
+      , linetype = "dashed"
+      , inherit.aes = F
+    ) +
+    geom_sf(
+      data = wf_landscapes %>% 
+        dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>% 
+        sf::st_transform(crs=plt_crs)
+      , mapping = aes(color = "WCS Landscape\nboundary")
+      , fill = NA
+      # , color = "black"
+      , lwd = 0.6
+      , inherit.aes = F
+    ) +
+    scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
+    scale_color_manual(values = c("gray44","skyblue2", "black")) +
+    labs(
+      fill = "Fireshed\nHigh-Risk Status"
+      , color = "Spatial\nFramework"
+      , title = "Spatial Framework and Risk"
+      , caption = paste0(
+        "High-Risk Fireshed Project Areas: "
+        , sum_dta_temp$total_area_acres[1], " acres"
+        , " ("
+        , sum_dta_temp$total_area_ha[1], " ha"
+        , ")"
+      )
+    ) +
+    coord_sf(expand = F) +
+    guides(
+      color = guide_legend(order = 1, override.aes = list(orientation = "vertical", size = 8, linewidth = 5, fill = NA))
+      , fill = guide_legend(order = 2, override.aes = list(orientation = "vertical", size = 8,linewidth = 0, alpha = 1))
+    )
+  # return
+  return(plt)
+}
+# spatial_frmwrk_map_fn(row_n = 2)
+```
+
+### Read Raster Data Function
+
+This raster data was created via this [Google Earth Engine script](https://code.earthengine.google.com/692417f7747e247fc0545824135a0355?noload=true).
+
+```{r raster-data-read-fn}
+# function to read raster data
+raster_data_read_fn <- function(row_n = 1) {
+ # set up name like in file name
+  nm_temp <- paste0(
+    "*"
+    , area_nm_list[row_n] %>% 
+      stringr::str_split(pattern = ":", simplify = T) %>% 
+      purrr::pluck(2) %>% 
+      trimws() %>% 
+      stringr::str_replace_all(pattern = " ", replacement = "_")
+    , ".tif$"
+  )
+  # read all raster data files and stack
+  files_temp <- list.files("../data/wildfirepriority/images/",pattern = nm_temp,recursive = T) 
+  layers_names <- files_temp %>% stringr::word(1,sep = "/")
+  rast_list_temp <- files_temp %>%  
+    purrr::map(function(x){
+      terra::rast(paste0("../data/wildfirepriority/images/",x)) 
+        # terra::project(wf_landscapes %>% sf::st_transform(crs=plt_crs) %>% terra::vect() %>% terra::crs())
+    }) %>% 
+    # name list objects
+    setNames(layers_names) 
+  # return
+  return(rast_list_temp)
+}
+rast_list_temp <- raster_data_read_fn(row_n = 2)
+```
+
+
+### Forest and Shrub Land Cover
+
+```{r landcover-map-fn}
+# function to plot basemap + forest&shrub
+landcover_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
+  # area for caption
+  area_temp <- constrained_by_scnro_ls %>% 
+    dplyr::filter(scenario_id==1 & area_name == area_nm_list[row_n]) %>% 
+    dplyr::mutate(covertype_area_acres=(covertype_area_ha*10000)/4046.85642) %>% 
+    dplyr::mutate(
+      dplyr::across(
+        tidyselect::starts_with("covertype_area_")
+        , ~ scales::comma(.x, suffix = "k", scale = 1e-3, accuracy = 1)
+      )
+    )
+  # plot forest and shrub cover
+  plt <- plt_basemap +
+    geom_tile(
+      data = 
+        rast_list_temp[["sc1"]]$is_selected_nlcd %>% 
+          terra::mask(
+            rast_list_temp[["sc1"]]$is_selected_nlcd %>% 
+              terra::clamp(lower = 1, upper = 1, values = FALSE)
+          ) %>%
+          terra::mask(
+            wf_landscapes %>%
+              dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+              terra::vect() %>%
+              terra::project(terra::crs(rast_list_temp[["sc1"]]$is_selected_nlcd))
+          ) %>%
+          terra::aggregate(fact = rast_agg_fact, fun = "modal") %>%
+          terra::project(
+            wf_landscapes %>% 
+              dplyr::filter(
+                  area_name == area_nm_list[row_n]
+                ) %>% 
+              sf::st_transform(crs=plt_crs) %>% 
+              terra::vect() %>%
+              terra::crs()
+          ) %>% 
+          as.data.frame(xy=T) %>% 
+          dplyr::rename(f = 3) %>% 
+          dplyr::mutate(f=factor(f))
+      , mapping = aes(x=x,y=y,fill=f)
+      , alpha = 0.7
+      , inherit.aes = F
+    ) +
+    geom_sf(
+      data = wf_landscapes %>% 
+        dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>% 
+        sf::st_transform(crs=plt_crs)
+      , fill = NA
+      , color = "black"
+      , lwd = 0.6
+      , inherit.aes = F
+    ) + 
+    scale_fill_manual(values = c("forestgreen"), na.value = "transparent") +
+    labs(
+      title = "Forest and Shrub Land Cover"
+      , subtitle = "<span><span style='color:forestgreen;'><b>Forest & Shrub</b></span>"
+      , caption = paste0(
+          "Forest and Shrub Cover: "
+          , area_temp$covertype_area_acres[1], " acres"
+          , " ("
+          , area_temp$covertype_area_ha[1], " ha"
+          , ")"
+        )
+    ) +
+    coord_sf(expand = F) +
+    theme(
+      legend.position = "none"
+      , plot.subtitle = ggtext::element_markdown(size = 10)
+    )
+
+  # return
+  return(plt)
+}
+# landcover_map_fn(row_n = 2, rast_agg_fact = 10)
+```
+
+### Protected Area
+
+```{r protected-map-fn}
+# function to plot basemap + protected
+protected_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
+  # area for caption
+  area_m2_temp <- rast_list_temp[["sc1"]]$is_protected %>% 
+    terra::mask(
+      rast_list_temp[["sc1"]]$is_protected %>% 
+        terra::clamp(lower = 1, upper = 1, values = FALSE)
+    ) %>%
+    terra::mask(
+      wf_landscapes %>%
+        dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+        terra::vect() %>%
+        terra::project(terra::crs(rast_list_temp[["sc1"]]$is_protected))
+    ) %>% 
+    terra::freq() %>% 
+    dplyr::filter(value==1) %>% 
+    dplyr::pull(count) *
+      (terra::res(rast_list_temp[["sc1"]]$is_protected) %>% prod())
+  # plot forest and shrub cover
+  plt <- plt_basemap +
+    geom_tile(
+      data = 
+        rast_list_temp[["sc1"]]$is_protected %>% 
+          terra::mask(
+            rast_list_temp[["sc1"]]$is_protected %>% 
+              terra::clamp(lower = 1, upper = 1, values = FALSE)
+          ) %>%
+          terra::mask(
+            wf_landscapes %>%
+              dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+              terra::vect() %>%
+              terra::project(terra::crs(rast_list_temp[["sc1"]]$is_protected))
+          ) %>%
+          terra::aggregate(fact = rast_agg_fact, fun = "modal") %>%
+          terra::project(
+            wf_landscapes %>% 
+              dplyr::filter(
+                  area_name == area_nm_list[row_n]
+                ) %>% 
+              sf::st_transform(crs=plt_crs) %>% 
+              terra::vect() %>%
+              terra::crs()
+          ) %>% 
+          as.data.frame(xy=T) %>% 
+          dplyr::rename(f = 3) %>% 
+          dplyr::mutate(f=factor(f))
+      , mapping = aes(x=x,y=y,fill=f)
+      , alpha = 0.7
+      , inherit.aes = F
+    ) +
+    geom_sf(
+      data = wf_landscapes %>% 
+        dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>% 
+        sf::st_transform(crs=plt_crs)
+      , fill = NA
+      , color = "black"
+      , lwd = 0.6
+      , inherit.aes = F
+    ) + 
+    scale_fill_manual(values = c("#f0f921"), na.value = "transparent") +
+    labs(
+      title = "Protected and Inventoried Roadless Areas"
+      , subtitle = "<span><span style='color:#f0f921;'><b>Protected & IRA</b></span>"
+      , caption = paste0(
+          "Protected and Inventoried Roadless Areas: "
+          , scales::comma(area_m2_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , " ("
+          , scales::comma(area_m2_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , ")"
+        )
+    ) +
+    coord_sf(expand = F) +
+    theme(
+      legend.position = "none"
+      , plot.subtitle = ggtext::element_markdown(size = 10)
+    )
+
+  # return
+  return(plt)
+}
+# protected_map_fn(row_n = 2, rast_agg_fact = 10)
+```
+
+### Steep Slopes
+
+```{r slopes-map-fn}
+# function to plot basemap + slopes
+slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
+  # slopes sc1
+  area_m2_sc1_temp <- rast_list_temp[["sc1"]]$is_steep_slopes %>% 
+      terra::mask(
+        rast_list_temp[["sc1"]]$is_steep_slopes %>% 
+          terra::clamp(lower = 1, upper = 1, values = FALSE)
+      ) %>%
+      terra::mask(
+        wf_landscapes %>%
+          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+          terra::vect() %>%
+          terra::project(terra::crs(rast_list_temp[["sc1"]]$is_steep_slopes))
+      ) %>% 
+      terra::freq() %>% 
+      dplyr::filter(value==1) %>% 
+      dplyr::pull(count) *
+        (terra::res(rast_list_temp[["sc1"]]$is_steep_slopes) %>% prod())
+  # slopes sc2
+  area_m2_sc2_temp <- rast_list_temp[["sc2"]]$is_steep_slopes %>% 
+      terra::mask(
+        rast_list_temp[["sc2"]]$is_steep_slopes %>% 
+          terra::clamp(lower = 1, upper = 1, values = FALSE)
+      ) %>%
+      terra::mask(
+        wf_landscapes %>%
+          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+          terra::vect() %>%
+          terra::project(terra::crs(rast_list_temp[["sc2"]]$is_steep_slopes))
+      ) %>% 
+      terra::freq() %>% 
+      dplyr::filter(value==1) %>% 
+      dplyr::pull(count) *
+        (terra::res(rast_list_temp[["sc2"]]$is_steep_slopes) %>% prod())
+  # plot forest and shrub cover
+  plt <- plt_basemap +
+    # scenario 1 slopes
+    geom_tile(
+      data = 
+        # scenario 1 slopes
+        rast_list_temp[["sc1"]]$is_steep_slopes %>% 
+        terra::mask(
+          rast_list_temp[["sc1"]]$is_steep_slopes %>% 
+            terra::clamp(lower = 1, upper = 1, values = FALSE)
+        ) %>%
+        # mask area
+        terra::mask(
+          wf_landscapes %>%
+            dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+            terra::vect() %>%
+            terra::project(terra::crs(rast_list_temp[["sc1"]]$is_steep_slopes))
+        ) %>% 
+        # aggregate and project
+          terra::aggregate(fact = rast_agg_fact, fun = "modal") %>%
+          terra::as.factor() %>% 
+          terra::project(
+            wf_landscapes %>% 
+              dplyr::filter(
+                  area_name == area_nm_list[row_n]
+                ) %>% 
+              sf::st_transform(crs=plt_crs) %>% 
+              terra::vect() %>%
+              terra::crs()
+          ) %>% 
+          as.data.frame(xy=T) %>% 
+          dplyr::rename(f = 3) %>% 
+          dplyr::mutate(f=factor(f))
+      , mapping = aes(x=x,y=y,fill="40")
+      , alpha = 0.7
+      , inherit.aes = F
+    ) +
+  # scenario 2 slopes
+    geom_tile(
+      data = 
+        # scenario 2 slopes
+        rast_list_temp[["sc2"]]$is_steep_slopes %>% 
+        terra::mask(
+          rast_list_temp[["sc2"]]$is_steep_slopes %>% 
+            terra::clamp(lower = 1, upper = 1, values = FALSE)
+        ) %>%
+        # mask area
+        terra::mask(
+          wf_landscapes %>%
+            dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+            terra::vect() %>%
+            terra::project(terra::crs(rast_list_temp[["sc2"]]$is_steep_slopes))
+        ) %>% 
+        # aggregate and project
+          terra::aggregate(fact = rast_agg_fact, fun = "modal") %>%
+          terra::as.factor() %>% 
+          terra::project(
+            wf_landscapes %>% 
+              dplyr::filter(
+                  area_name == area_nm_list[row_n]
+                ) %>% 
+              sf::st_transform(crs=plt_crs) %>% 
+              terra::vect() %>%
+              terra::crs()
+          ) %>% 
+          as.data.frame(xy=T) %>% 
+          dplyr::rename(f = 3) %>% 
+          dplyr::mutate(f=factor(f))
+      , mapping = aes(x=x,y=y,fill="60")
+      , alpha = 0.7
+      , inherit.aes = F
+    ) +
+    geom_sf(
+      data = wf_landscapes %>% 
+        dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>% 
+        sf::st_transform(crs=plt_crs)
+      , fill = NA
+      , color = "black"
+      , lwd = 0.6
+      , inherit.aes = F
+    ) + 
+    scale_fill_manual(values = c("#febe2a","#f9973e"), na.value = "transparent") +
+    labs(
+      title = "Slopes"
+      , subtitle = "<span><span style='color:#febe2a;'><b>Slopes >40%</b></span> | <span style='color:#f9973e;'><b>Slopes >60%</b></span></span>"
+      , caption = paste0(
+          "Slopes >40%: "
+          , scales::comma(area_m2_sc1_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , " ("
+          , scales::comma(area_m2_sc1_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , ")"
+          , " | Slopes >60%: "
+          , scales::comma(area_m2_sc2_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , " ("
+          , scales::comma(area_m2_sc2_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , ")"
+        )
+    ) +
+    coord_sf(expand = F) +
+    theme(
+      legend.position = "none"
+      , plot.subtitle = ggtext::element_markdown(size = 10)
+    )
+
+  # return
+  return(plt)
+}
+# slopes_map_fn(row_n = 2, rast_agg_fact = 4)
+```
+
+
+```{r}
+# function to plot scenario constraints + basemap
+scenario_cnstrnt_map_fn <- function(row_n = 1) {
+  plt <- landscape_basemap_fn(row_n) + 
+      geom_sf(
+        data = map_fs_temp %>%
+          dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>%
+          sf::st_transform(crs=plt_crs)
+        , aes(fill = cnstrnt_class), lwd = 0.05
+        , inherit.aes = F
+        , alpha = 0.6
+      ) +
+      geom_sf(
+        data = wf_landscapes %>% 
+          dplyr::filter(
+              area_name == area_nm_list[row_n]
+            ) %>% 
+          sf::st_transform(crs=plt_crs)
+        , fill = NA, color = "black", lwd = 0.3
+        , inherit.aes = F
+      ) +
+      facet_grid(
+        cols = vars(scenario_lab)
+        , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+        # , switch = "both"
+      ) +
+      scale_fill_manual(values = cols_rdylbu_lt) +
+      labs(
+        fill = "Level of\nConstraint"
+      ) +
+        guides(
+        fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
+      )
+  # return
+  return(plt)
+}
+# scenario_cnstrnt_map_fn(row_n = 9)
+
+geom_sf(
+      data = wf_landscapes %>% 
+        dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>% 
+        sf::st_transform(crs=plt_crs)
+      , fill = NA, color = "black", lwd = 0.3
+      , inherit.aes = F
+    ) +
+
+```
+
+
+
+```{r scenario-maps-fn, eval=T, include=T}
+# function to plot scenario constraints + basemap
+scenario_cnstrnt_map_fn <- function(row_n = 1) {
+  plt <- landscape_basemap_fn(row_n) + 
+      geom_sf(
+        data = map_fs_temp %>%
+          dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>%
+          sf::st_transform(crs=plt_crs)
+        , aes(fill = cnstrnt_class), lwd = 0.05
+        , inherit.aes = F
+        , alpha = 0.6
+      ) +
+      geom_sf(
+        data = wf_landscapes %>% 
+          dplyr::filter(
+              area_name == area_nm_list[row_n]
+            ) %>% 
+          sf::st_transform(crs=plt_crs)
+        , fill = NA, color = "black", lwd = 0.3
+        , inherit.aes = F
+      ) +
+      facet_grid(
+        cols = vars(scenario_lab)
+        , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+        # , switch = "both"
+      ) +
+      scale_fill_manual(values = cols_rdylbu_lt) +
+      labs(
+        fill = "Level of\nConstraint"
+      ) +
+        guides(
+        fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
+      )
+  # return
+  return(plt)
+}
+# scenario_cnstrnt_map_fn(row_n = 9)
+```
+
+
+
+
+## Geographic Delineation Description {#fsheds}
+
+```{r plt-basemap}
+#define basemap
+states_temp <- USAboundaries::us_states(
+  states = c(
+        # usfs region 1-6 states
+        "MT","WY","CO","NM","AZ","UT","ID","WA","OR","CA","NV"
+        # , "KS","NE","SD","ND"
+      )
+  ) %>% 
+  sf::st_transform(transform_crs)
+cities_temp <- USAboundaries::us_cities(
+  states = c(
+        # usfs region 1-6 states
+        "MT","WY","CO","NM","AZ","UT","ID","WA","OR","CA","NV"
+        # , "KS","NE","SD","ND"
+      )
+  ) %>% 
+  sf::st_transform(transform_crs) %>% 
+  dplyr::filter(
+    toupper(city) %in% c(
+      "DENVER"
+      , "TUSCON"
+      , "SALT LAKE CITY"
+      , "LAS VEGAS"
+      , "SAN DIEGO"
+      , "LOS ANGELES"
+      , "FRESNO"
+      , "SAN FRANCISCO"
+      , "SACRAMENTO"
+      , "PORTLAND"
+      , "SEATTLE"
+      , "ALBUQUERQUE"
+      , "RENO"
+      , "BOISE"
+      , "HELENA"
+      , "BILLINGS"
+    )
+    | (toupper(city) == "PHOENIX" & state_abbr == "AZ")
+  )
+# plot basemap
+plt_basemap <-
+ggplot() + 
+  geom_sf(
+    data = states_temp
+    , fill = NA
+    , color = "gray66"
+  ) +
+  geom_sf_text(
+    data = states_temp
+    , mapping = aes(label = stusps)
+    , color = "gray66"
+    , size = 3
+  ) +
+  geom_sf(
+    data = cities_temp
+    , shape = 1
+    , size = 1
+    , color = "gray44"
+  ) +
+  geom_sf_text(
+    data = cities_temp
+    , mapping = aes(label = city)
+    , color = "gray44"
+    , size = 2
+    # , hjust = -0.15
+    , hjust = 0.5
+    , vjust = -0.25
+  ) +
+  coord_sf(expand = F) +
+  theme_void()
+
+# plot basemap simple
+plt_basemap_simple <-
+ggplot() + 
+  geom_sf(
+    data = states_temp
+    , fill = NA
+    , color = "gray66"
+  ) +
+  coord_sf(expand = F) +
+  theme_void()
+```
+
+### Fireshed risk to communities (2021)
+
+```{r map-fshed-exp}
+ggplot() + 
+  geom_sf(
+    data = fireshed
+    , mapping = aes(fill=ntllandrank_pct_rank_grp)
+  ) + 
+  geom_sf(
+    data = USAboundaries::us_states() %>% 
+      dplyr::filter(!stusps %in% c("AK","HI","PR")) %>% 
+      sf::st_transform(transform_crs)
+    , fill = NA
+    , color = "gray88"
+  ) +
+  scale_fill_manual(values=c("firebrick","orange3","khaki","seagreen3","royalblue")) +
+  coord_sf(expand = F) +
+  labs(
+    fill = "Fireshed exposure ranks"
+  ) +
+  theme_void() + 
+  theme(
+    legend.position = "top"
+    , legend.direction = "horizontal"
+    , legend.title = element_text(size = 8)
+    , legend.text = element_text(size = 7)
+  )
+```
+
+*National map of the 7,688 firesheds created from community wildfire transmission data (Evers et al. 2020). The fireshed boundaries were created with a process that delineates hotspots of fire transmission to buildings in adjacent or nearby communities. See the Methods section for details on delineating firesheds.* Figure 2 from [Ager et al. 2021](https://scholar.google.com/scholar?cluster=7852635540589253195&hl=en&as_sdt=0,6) (p. 7)
+
+### Wilfire Crisis Strategy 21 Priority Landscapes (2022-2023)
+
+```{r map-wcs-21}
+plt_fshed <- 
+plt_basemap + 
+  geom_sf(
+    data = fireshed %>%
+      sf::st_filter(
+        wf_landscapes %>%
+          dplyr::select(area_name)
+        , .predicate=st_intersects
+      )
+    , aes(fill=crisis_strategy)
+    , alpha = 0.8
+  ) +
+  geom_sf(
+    data = wf_landscapes
+    , mapping = aes(color = paste0(investment, " investment"))
+    , fill=NA
+    # , color="black" 
+    , lwd=0.6
+  )+
+  geom_text(
+    data = wf_landscapes %>% 
+        sf::st_drop_geometry() %>% 
+        sf::st_as_sf(coords = c("lon","lat")) %>% 
+        sf::st_set_crs(4326) %>% 
+        sf::st_transform(transform_crs)
+    , aes(
+        label = stringr::str_wrap(
+          dplyr::case_when(
+            stringr::str_count(name, "\\w+")<2
+              ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
+            , stringr::str_starts(name,"Sierra and Elko") ~ stringr::word(name,1,3)
+            , TRUE ~ stringr::word(name,1,2)
+          )
+          , 7)
+        , color = paste0(investment, " investment")
+        , geometry = geometry
+        , fontface = "bold.italic"
+      )
+    , stat = "sf_coordinates"
+    , size = 2.5
+    # , seed = 11
+    # , min.segment.length = 0
+    , show.legend = F
+  ) +
+  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
+  scale_color_manual(values = c("black", "gray33")) +
+  labs(
+    fill = "Fireshed\nHigh-Risk Status"
+    , color = "Landscapes"
+  ) +
+  theme(
+      legend.position = c(0.87,0.87) # "top"
+      # , legend.direction = "horizontal"
+      , legend.title = element_text(size = 8, face = "bold")
+      , legend.text = element_text(size = 8)
+    ) +
+  guides(
+    color = guide_legend(order = 1, override.aes = list(lwd = 3, fill = NA)) #, linetype = c(5,1,1)
+    , fill = guide_legend(order = 2, override.aes = list(lwd = 0))
+  )
+# plot
+plt_fshed
+ggplot2::ggsave(
+    filename = paste0("../data/plt_map_ls_fshed.png")
+    , plot = ggplot2::last_plot()
+    , width = 8.5
+    , height = 11
+    , units = "in"
+    , dpi = "print"
+    , bg = "white"
+  )
+
+```
+
+The boundaries of the 21 priority landscapes roughly follow the boundaries of "firesheds" prioritized to reduce wildfire transmission to developed areas (Figure 1). Firesheds are geographic delineations with an average area of approximately 250,000 acres (~100,000 hectares) that were created to organize the landscape into units for managing wildfire risk to communities.
+
+### Wilfire Crisis Strategy Treatment Objective{#hi_geo_desc}
+
+```{r map-wcs-obj}
+plt_basemap + 
+  geom_sf(
+    data = fireshed %>%
+      dplyr::filter(crisis_strategy %in% c("USFS-Only", "All-Lands")) %>% 
+      sf::st_filter(
+        wf_landscapes %>%
+          dplyr::select(area_name)
+        , .predicate=st_intersects
+      )
+    , aes(fill=crisis_strategy)
+    , alpha = 0.8
+  ) +
+  geom_sf(
+    data = wf_landscapes
+    , mapping = aes(color = paste0(investment, " investment"))
+    , fill=NA
+    # , color="black" 
+    , lwd=0.6
+  )+
+  geom_text(
+    data = wf_landscapes %>% 
+        sf::st_drop_geometry() %>% 
+        sf::st_as_sf(coords = c("lon","lat")) %>% 
+        sf::st_set_crs(4326) %>% 
+        sf::st_transform(transform_crs)
+    , aes(
+        label = stringr::str_wrap(
+          dplyr::case_when(
+            stringr::str_count(name, "\\w+")<2
+              ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
+            , stringr::str_starts(name,"Sierra and Elko") ~ stringr::word(name,1,3)
+            , TRUE ~ stringr::word(name,1,2)
+          )
+          , 7)
+        , color = paste0(investment, " investment")
+        , geometry = geometry
+        , fontface = "bold.italic"
+      )
+    , stat = "sf_coordinates"
+    , size = 2.5
+    # , seed = 11
+    # , min.segment.length = 0
+    , show.legend = F
+  ) +
+  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
+  scale_color_manual(values = c("black", "gray33")) +
+  labs(
+    fill = "Fireshed\nHigh-Risk Status"
+    , color = "Landscapes"
+  ) +
+  theme(
+      legend.position = c(0.87,0.87) # "top"
+      # , legend.direction = "horizontal"
+      , legend.title = element_text(size = 8, face = "bold")
+      , legend.text = element_text(size = 8)
+    ) +
+  guides(
+    color = guide_legend(order = 1, override.aes = list(lwd = 3, fill = NA)) #, linetype = c(5,1,1)
+    , fill = guide_legend(order = 2, override.aes = list(lwd = 0))
+  )
+```
+
+Models suggest that fuels reduction treatments can effectively reduce fire size and severity when 20-40% of the landscape has been treated (e.g., Finney, 2007) and the Strategy (USFS, 2022a) aims to treat this amount of high-risk fireshed area within the 21 priority landscapes. The total area of the 21 priority landscapes is approximately 47 million acres (19 million ha), of which 23.7 million acres (9.6 million ha) are in high-risk firesheds; an objective of treating 20-40% would indicate the need to treat between 4.7 to 9.5 million acres (1.9 to 3.8 million ha).
+
+### Fireshed Project Areas
+
+```{r map-fs-pa}
+name_temp <- "Enchanted Circle"
+# pa map
+plt_fshed_pa <-
+ggplot() + 
+  geom_sf(data = 
+    fireshed_proj_area %>% 
+      dplyr::mutate(pa_id=as.character(pa_id)) %>% 
+      dplyr::inner_join(
+        constrained_by_scnro_ls_pa %>% 
+          dplyr::filter(
+            # fireshed_crisis_strategy %in% c("USFS-Only", "All-Lands")
+            name == name_temp
+          ) %>% 
+          dplyr::select(pa_id)
+        , by = dplyr::join_by(pa_id)
+        , multiple = "all"
+      )
+    , aes(fill = fireshed_crisis_strategy, color = "Project Area\nboundary")
+    , alpha = 0.8
+    , lwd = 1.2
+  ) +
+  geom_sf(
+    data = fireshed %>%
+      # dplyr::filter(crisis_strategy %in% c("USFS-Only", "All-Lands")) %>% 
+      sf::st_filter(
+        wf_landscapes %>%
+          dplyr::filter(name == name_temp) %>% 
+          dplyr::select(area_name)
+        , .predicate=st_intersects
+      )
+    , aes(color = "Fireshed\nboundary")
+    , fill = NA
+    , lwd = 1.2
+    , linetype = "dashed"
+  ) +
+  geom_sf(
+    data = wf_landscapes %>% dplyr::filter(name == name_temp)
+    , mapping = aes(color = "WCS Landscape\nboundary")
+    , fill=NA
+    , lwd = 0.9
+  )+
+  scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
+  scale_color_manual(values = c("gray44","skyblue2", "black")) +
+  labs(
+    fill = "Fireshed\nHigh-Risk Status"
+    , color = "Spatial\nFramework"
+    , subtitle = name_temp
+  ) +
+  coord_sf(expand = F) +
+  theme_void() +
+  theme(
+      legend.position = c(1.08,0.79) # "top"
+      # , legend.direction = "horizontal"
+      , legend.title = element_text(size = 8, face = "bold")
+      , legend.text = element_text(size = 10)
+      , plot.subtitle = element_text(face = "bold.italic", size = 10, hjust = 0.5)
+    ) +
+  guides(
+    color = guide_legend(order = 1, override.aes = list(size = 8, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
+    , fill = guide_legend(order = 2, override.aes = list(size = 8,linewidth = 0, alpha = 1)) # , color = NA
+  )
+```
+
+
+```{r map-fs-pa-inset, include=FALSE, eval=FALSE}
+# inset map
+bb_temp <- wf_landscapes %>% 
+  dplyr::filter(name == name_temp) %>% 
+  sf::st_transform(crs=5070) %>% 
+  sf::st_buffer(280000) %>% 
+  sf::st_transform(crs=transform_crs) %>% 
+  sf::st_bbox()
+plt_inset <-
+  plt_fshed +
+    coord_sf(
+      xlim = c(bb_temp[[1]], bb_temp[[3]])
+      , ylim = c(bb_temp[[2]], bb_temp[[4]])
+      , expand = FALSE
+    ) +
+    theme(
+      legend.position = "none"
+      , plot.background = element_rect(color = "black", fill=NA, size=2)
+    )
+# draw with inset
+cowplot::ggdraw(plt_fshed_pa) +
+  cowplot::draw_plot(
+    plt_inset
+    # The distance along a (0,1) x-axis to draw the left edge of the plot
+    , x = 0.71
+    # The distance along a (0,1) y-axis to draw the bottom edge of the plot
+    , y = 0
+    # The width and height of the plot expressed as proportion of the entire ggdraw object
+    , width = 0.28
+    , height = 0.28
+  )
+ggplot2::ggsave(
+    filename = paste0("../data/plt_ex_spatial1.png")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 10
+    , units = "in"
+    , dpi = "print"
+  )
+```
+
+```{r map-fs-pa-win}
+# pa map w/in
+plt_fshed_pa_incl <- ggplot() + 
+  geom_sf(data = 
+    fireshed_proj_area %>% 
+      dplyr::mutate(pa_id=as.character(pa_id)) %>% 
+      dplyr::inner_join(
+        constrained_by_scnro_ls_pa %>% 
+          dplyr::filter(
+            # fireshed_crisis_strategy %in% c("USFS-Only", "All-Lands")
+            name == name_temp
+          ) %>%
+          dplyr::mutate(
+            # is_25in = ifelse(pct_pa_intrsct>=0.25,"≥25%","<25%")
+            is_25in = ifelse(pct_pa_intrsct>=0.25,"included","excluded")
+          ) %>% 
+          dplyr::select(
+            pa_id
+            , is_25in
+          )
+        , by = dplyr::join_by(pa_id)
+        , multiple = "all"
+      )
+    , aes(fill = is_25in, color = "Project Area\nboundary")
+    , alpha = 0.9
+    , lwd = 1.2
+  ) +
+  geom_sf(
+    data = fireshed %>%
+      # dplyr::filter(crisis_strategy %in% c("USFS-Only", "All-Lands")) %>% 
+      sf::st_filter(
+        wf_landscapes %>%
+          dplyr::filter(name == name_temp) %>% 
+          dplyr::select(area_name)
+        , .predicate=st_intersects
+      )
+    , aes(color = "Fireshed\nboundary")
+    , fill = NA
+    , lwd = 1.2
+    , linetype = "dashed"
+  ) +
+  geom_sf(
+    data = wf_landscapes %>% dplyr::filter(name == name_temp)
+    , mapping = aes(color = "WCS Landscape\nboundary")
+    , fill=NA
+    , lwd = 0.9
+  )+
+  scale_fill_manual(values = viridis::viridis(n=4, direction = -1, alpha = 0.9)[c(1,3)]) +
+  scale_color_manual(values = c("gray44","skyblue2", "black")) +
+  labs(
+    fill = "Project Area\nInclusions"
+    # fill = "Included in this analysis\nif ≥25% area w/in landscape"
+    , color = "Spatial\nFramework"
+    , subtitle = name_temp
+  ) +
+  coord_sf(expand = F) +
+  theme_void() +
+  theme(
+      legend.position = c(1.08,0.83) # "top"
+      # , legend.direction = "horizontal"
+      , legend.title = element_text(size = 8, face = "bold")
+      , legend.text = element_text(size = 10)
+      , plot.subtitle = element_text(face = "bold.italic", size = 10, hjust = 0.5)
+    ) +
+  guides(
+    color = guide_legend(order = 1, override.aes = list(size = 8, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
+    , fill = guide_legend(order = 2, override.aes = list(size = 8,linewidth = 0, alpha = 1)) # , color = NA
+  )
+
+# combine
+cowplot::plot_grid(
+    plotlist = list(
+      NULL
+      , plt_fshed_pa + 
+        theme(
+          plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
+          , plot.margin = margin(0.5,3,0.5,0.5, "cm")
+        )
+      , NULL
+      , plt_fshed_pa_incl + 
+        theme(
+          plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
+          , plot.margin = margin(0.5,3,0.5,0.5, "cm")
+        )
+      , NULL
+    )
+    , nrow = 1
+    , rel_widths = c(0.01,1,0.01,1,0.01)
+    , labels = c("","A","","B","")
+    , label_size = 17
+    , label_fontface = "bold"
+    , label_colour = "gray11"
+    # , label_y = 0.99
+  ) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+# export
+ggplot2::ggsave(
+    filename = paste0("../data/plt_ex_spatial_strctr.png")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 5.8
+    , units = "in"
+    , dpi = "print"
+  )
+```
+
+A) Nested within firesheds are project areas of approximately 10,000 ha in size which represent the geographic unit at which vegetation and fuel management projects are planned ([Ager et al. 2021](https://scholar.google.com/scholar?cluster=7852635540589253195&hl=en&as_sdt=0,6)).
+
+B) Fireshed project areas that did not have at least *25%* of area within the boundary of the Strategy priority landscape were excluded from this analysis. This cutoff was implemented under the assumption that with less than 25% of area available, treatment alone would not substantially affect wildfire behavior across the fireshed ([North et al. 2015](https://scholar.google.com/scholar?cluster=10713464278686805098&hl=en&as_sdt=0,6)). For each fireshed project area included in this analysis, the entire area within the project area boundary was used to calculate the percent of mechanically available acreage including area outside of the priority landscape boundary.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+
+
+
+
+```{r scenario-maps-fn, eval=T, include=T}
+# function to plot scenario constraints + basemap
+scenario_cnstrnt_map_fn <- function(row_n = 1) {
+  plt <- landscape_basemap_fn(row_n) + 
+      geom_sf(
+        data = map_fs_temp %>%
+          dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>%
+          sf::st_transform(crs=plt_crs)
+        , aes(fill = cnstrnt_class), lwd = 0.05
+        , inherit.aes = F
+        , alpha = 0.6
+      ) +
+      geom_sf(
+        data = wf_landscapes %>% 
+          dplyr::filter(
+              area_name == area_nm_list[row_n]
+            ) %>% 
+          sf::st_transform(crs=plt_crs)
+        , fill = NA, color = "black", lwd = 0.3
+        , inherit.aes = F
+      ) +
+      facet_grid(
+        cols = vars(scenario_lab)
+        , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+        # , switch = "both"
+      ) +
+      scale_fill_manual(values = cols_rdylbu_lt) +
+      labs(
+        fill = "Level of\nConstraint"
+      ) +
+        guides(
+        fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
+      )
+  # return
+  return(plt)
+}
+scenario_cnstrnt_map_fn(row_n = 9)
+```
+
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+<!-- ############################################################################ -->
+
+
+
+## Scenarios Considered
+
+There are three scenarios considered in this analysis of the constraints to mechanical forest health and fuel reduction treatments:
+
+```{r sc-tab, results='asis'}
+# mechanical mgmt allowed if:
+n_sc_temp <- 3
+data.frame(
+  scenario = 1:3
+  , cover = rep("Forest or Shrubland",n_sc_temp)
+  , protected = rep("Not Protected",n_sc_temp)
+  , slope = c("<40%","<60%","<60%")
+  , road = c("<1,000ft","<2,000ft","<2,000ft")
+  , riparian = c(">100ft",">100ft",">50ft")
+  , admin = c("No Designation","No Designation","Any Designation")
+) %>% 
+  tidyr::pivot_longer(
+    cols = -c(scenario)
+  ) %>% 
+  tidyr::pivot_wider(
+    names_from = scenario
+    , values_from = value
+    , names_prefix = "scenario_"
+  ) %>% 
+  dplyr::mutate(
+    name = factor(
+      name
+      , levels = c(
+        "cover"
+        , "protected"
+        , "slope"
+        , "road"
+        , "riparian"
+        , "admin"
+      )
+      , labels = c(
+        "NLCD Cover Type"
+        , "Protected or<br>IRA Status"
+        , "Slope"
+        , "Distance to<br>Nearest Road"
+        , "Riparian<br>Buffer"
+        , "Administrative<br>Designation"
+      )
+      , ordered = T
+    )
+  ) %>% 
+  dplyr::arrange(name) %>% 
+  dplyr::mutate(
+    lvl = paste0("L",dplyr::row_number()-1,":")
+  ) %>% 
+  dplyr::relocate(lvl) %>% 
+# make table
+kableExtra::kable(
+    caption = "Scenarios Considered for Determining Mechanical Treatment Operability<br>Mechanical treatment allowed if:"
+    , col.names = c(
+      ""
+      , ""
+      , "Scenario 1<br>Most Constrained"
+      , "Scenario 2<br>Moderate"
+      , "Scenario 3<br>Least Constrained"
+    )
+    , escape = F
+  ) %>%  
+  kable_classic(full_width=T) %>% 
+  kableExtra::kable_styling(font_size = 11,fixed_thead = TRUE)
+```
+

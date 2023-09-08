@@ -1,5 +1,6 @@
-// same as sandbox.js but moving roads to be before admin constraints
-var ex_polygon = ee.FeatureCollection("users/GeorgeWoolsey/unit_bbox");
+// Author: George Woolsey (george.woolsey@colostate.edu)
+// last updated: 2023-09-05
+// description: this is the code to be published with journal article
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // BEGIN: USER-DEFINED PARAMETERS AND DATA
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +18,8 @@ var ex_polygon = ee.FeatureCollection("users/GeorgeWoolsey/unit_bbox");
       // , 'San Juan National Forest'
       // , 'White River National Forest'
       // '02','03'
-      'Montana','Utah','New Mexico','Nevada'
+      'Plumas Community Protection'
+      // , 'Pine Valley'
     ]);
     var my_feature_collection = 
     ///////////////// states
@@ -29,7 +31,7 @@ var ex_polygon = ee.FeatureCollection("users/GeorgeWoolsey/unit_bbox");
       //   .filter(ee.Filter.inList('REGION', ft_list))
     ///////////////// wildfire priority landscapes
       ee.FeatureCollection("projects/forestmgmtconstraint/assets/Wildfire_Crisis_Strategy_Landscapes")
-      // .filter(ee.Filter.inList('STATE', ft_list))
+      .filter(ee.Filter.inList('NAME', ft_list))
     ;
     // var my_feature_collection = ex_polygon
       // .map(function(feature){
@@ -451,32 +453,34 @@ var constraint_image_fn = function(my_feature){
   // treatable
   var istreatable = rmn_area_administrative.rename(['istreatable']);
 
-  var area_classified = ee.ImageCollection.fromImages([
-      nlcd_treatable
-        .updateMask(istreatable.unmask().not())
-        .subtract(1)
-        .toInt8()
-        .rename(['istreatable'])
-      , istreatable.toInt8().rename(['istreatable'])
-    ])
-    .mosaic()
-  ;
   // //////////////////////////////////////////////////
   // //RETURN IMAGE COLLECTION
   // //////////////////////////////////////////////////
   // // return area_classified;
   // // return new_feature;
-  return area_classified
-      .addBands(nlcd_mask) // all nlcd pixels in feature : 0/1 selected land classes
-      .addBands(nlcd_treatable) // only selected land classes
-      .addBands(rmn_area_protected) // only selected land classes with protected removed
-      .addBands(rmn_area_slope) // only selected land classes with protected & slope removed
-      .addBands(rmn_area_roads) // only selected land classes with protected, slope, & dist road removed
-      .addBands(rmn_area_riparian) // "..."
-      .addBands(rmn_area_administrative) // "..."
+  return istreatable.unmask().int8()
+      .addBands(nlcd_mask.int8()) // all nlcd pixels in feature : 0/1 selected land classes
+      .addBands(padus_img.unmask().int8()) // protected areas : 0/1 
+      .addBands(slope_mask.not().int8()) // steep slopes : 0/1 
+      .addBands(all_roads_img.unmask().not().int8()) // roads are distant : 0/1 
+      .addBands(riparian_buffer.unmask().not().not().int8()) // riparian buffer : 0/1 
+      .addBands(admin_bounds.unmask().not().not().int8()) // administrative boundaries : 0/1 
+      // needed for constraint_stats_fn
+      .addBands(nlcd_treatable.int8()) // only selected land classes
+      .addBands(rmn_area_protected.int8()) // only selected land classes with protected removed
+      .addBands(rmn_area_slope.int8()) // only selected land classes with protected & slope removed
+      .addBands(rmn_area_roads.int8()) // only selected land classes with protected, slope, & dist road removed
+      .addBands(rmn_area_riparian.int8()) // "..."
+      .addBands(rmn_area_administrative.int8()) // "..."
     .rename([
       'area_classified'
-      , 'nlcd_mask'
+      , 'is_selected_nlcd'
+      , 'is_protected'
+      , 'is_steep_slopes'
+      , 'is_roads_distant'
+      , 'is_riparian_buffer'
+      , 'is_administrative'
+      // needed for constraint_stats_fn
       , 'nlcd_treatable'
       , 'rmn_area_protected'
       , 'rmn_area_slope'
@@ -492,215 +496,55 @@ var constraint_image_fn = function(my_feature){
 var all_classified_img_coll = ee.ImageCollection(
   my_feature_collection.map(constraint_image_fn)
 );
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// CONVERT IMAGE TO VECTORS FN
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-  var condensed_image_fn = function(my_image) {
-      // get feature id for filtering and setting later
-      var img_id = my_image.get('system:index');
-      // filter feature collection for use in reduce to vectors
-      var this_feature_rightnow = my_feature_collection.filter(ee.Filter.eq('system:index',img_id)).first();
-      var geom = this_feature_rightnow.geometry();
-      // select image band
-      var image_filtered = my_image.select('area_classified').rename('istreatable');
-      // reduce to vectors
-      var vectors = image_filtered
-        .addBands(image_filtered)
-        .reduceToVectors({
-          geometry: geom
-          , crs: nlcd.first().projection()
-          , scale: 30
-          , geometryType: 'polygon'
-          , eightConnected: false
-          , labelProperty: 'istreatable'
-          , reducer: ee.Reducer.mean()
-          , maxPixels: 1e12
-        })
-        .select(['istreatable'])
-        .map(function(feature){
-          return feature.set({'feature_id': img_id});
-        })
-      ;
-      // var condensed_image = vectors
-      //   .reduceToImage({
-      //     properties: ['istreatable'],
-      //     reducer: ee.Reducer.max()
-      //   })
-      //   .rename('istreatable')
-      //   .set({'system:index': img_id})
-      // ;
-      // return condensed_image;
-      return vectors;
-  }
-  var istreatable_ft_coll = ee.FeatureCollection(all_classified_img_coll.map(condensed_image_fn)).flatten();
-  // print(istreatable_ft_coll.first(),'istreatable_ft_coll');
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// STATS CALC FN
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-var constraint_stats_fn = function(my_feature) {
-  // get id of feature
-  var ft_id = my_feature.get('system:index')
-  // filter image collection
-  var this_image = ee.Image(
-    all_classified_img_coll
-    .filter(ee.Filter.eq('system:index', ft_id))
-    .first()
-  );
-  // define vars for area calcs
-  var nlcd_mask = this_image.select('nlcd_mask');
-  var nlcd_treatable = this_image.select('nlcd_treatable');
-  var rmn_area_protected = this_image.select('rmn_area_protected');
-  var rmn_area_slope = this_image.select('rmn_area_slope');
-  var rmn_area_roads = this_image.select('rmn_area_roads');
-  var rmn_area_riparian = this_image.select('rmn_area_riparian');
-  var rmn_area_administrative = this_image.select('rmn_area_administrative');
-  //////////////////////////////////////////////////
-  //CALCULATE AREA
-  //////////////////////////////////////////////////
-    // area of feature
-    var feature_area_m2 = my_feature.geometry().area();
-    // area of image
-    var nlcd_area_m2 = nlcd_mask
-      .gte(0)
-      .multiply(ee.Image.pixelArea())
-      .reduceRegion({
-        reducer: ee.Reducer.sum()
-        , geometry: my_feature.geometry()
-        , scale: 30
-        , maxPixels: 1e12
-      })
-      .get('nlcd_mask')
-    ;
-    var covertype_area_m2 = nlcd_treatable
-      .multiply(ee.Image.pixelArea())
-      .reduceRegion({
-        reducer: ee.Reducer.sum()
-        , geometry: my_feature.geometry()
-        , scale: 30
-        , maxPixels: 1e12
-      })
-      .get('nlcd_treatable')
-    ;
-    var rmn_protected_area_m2 = rmn_area_protected
-      .eq(1)
-      .multiply(ee.Image.pixelArea())
-      .reduceRegion({
-        reducer: ee.Reducer.sum()
-        , geometry: my_feature.geometry()
-        , scale: 30
-        , maxPixels: 1e12
-      })
-      .get('rmn_area_protected')
-    ;
-    var rmn_slope_area_m2 = rmn_area_slope
-      .eq(1)
-      .multiply(ee.Image.pixelArea())
-      .reduceRegion({
-        reducer: ee.Reducer.sum()
-        , geometry: my_feature.geometry()
-        , scale: 30
-        , maxPixels: 1e12
-      })
-      .get('rmn_area_slope')
-    ;
-    var rmn_roads_area_m2 = rmn_area_roads
-      .eq(1)
-      .multiply(ee.Image.pixelArea())
-      .reduceRegion({
-        reducer: ee.Reducer.sum()
-        , geometry: my_feature.geometry()
-        , scale: 30
-        , maxPixels: 1e12
-      })
-      .get('rmn_area_roads')
-    ;
-    var rmn_riparian_area_m2 = rmn_area_riparian
-      .eq(1)
-      .multiply(ee.Image.pixelArea())
-      .reduceRegion({
-        reducer: ee.Reducer.sum()
-        , geometry: my_feature.geometry()
-        , scale: 30
-        , maxPixels: 1e12
-      })
-      .get('rmn_area_riparian')
-    ;
-    var rmn_administrative_area_m2 = rmn_area_administrative
-      .eq(1)
-      .multiply(ee.Image.pixelArea())
-      .reduceRegion({
-        reducer: ee.Reducer.sum()
-        , geometry: my_feature.geometry()
-        , scale: 30
-        , maxPixels: 1e12
-      })
-      .get('rmn_area_administrative')
-    ;
-    // PCT REMAIN CALC
-    var pct_rmn1_protected = ee.Number(rmn_protected_area_m2).divide(ee.Number(covertype_area_m2));
-    var pct_rmn2_slope = ee.Number(rmn_slope_area_m2).divide(ee.Number(covertype_area_m2));
-    var pct_rmn3_roads = ee.Number(rmn_roads_area_m2).divide(ee.Number(covertype_area_m2));
-    var pct_rmn4_riparian = ee.Number(rmn_riparian_area_m2).divide(ee.Number(covertype_area_m2));
-    var pct_rmn5_administrative = ee.Number(rmn_administrative_area_m2).divide(ee.Number(covertype_area_m2));
-    // FULL LIST OF STATS
-    var statistics = ee.Dictionary({
-      'feature_area_m2': feature_area_m2
-      , 'nlcd_area_m2': nlcd_area_m2
-      , 'covertype_area_m2': covertype_area_m2
-      , 'rmn1_protected_area_m2' : rmn_protected_area_m2
-      , 'rmn2_slope_area_m2' : rmn_slope_area_m2
-      , 'rmn3_roads_area_m2' : rmn_roads_area_m2
-      , 'rmn4_riparian_area_m2' : rmn_riparian_area_m2
-      , 'rmn5_administrative_area_m2' : rmn_administrative_area_m2
-      , 'pct_rmn1_protected' : pct_rmn1_protected
-      , 'pct_rmn2_slope' : pct_rmn2_slope
-      , 'pct_rmn3_roads' : pct_rmn3_roads
-      , 'pct_rmn4_riparian' : pct_rmn4_riparian
-      , 'pct_rmn5_administrative' : pct_rmn5_administrative
+////////////////////////////////////////
+// MAPPING
+////////////////////////////////////////
+  ////////////////////////////
+  // paint empty big polygons
+  ////////////////////////////
+    // Create an empty image into which to paint the features, cast to byte.
+    var empty = ee.Image().byte();
+
+    // Paint all the polygon edges with the same number and width, display.
+    var outline = empty.paint({
+      featureCollection: my_feature_collection,
+      color: 1,
+      width: 3
     });
-    // add to feature
-    var new_feature = my_feature
-      .set('feature_area_m2', feature_area_m2)
-      .set('nlcd_area_m2', nlcd_area_m2)
-      .set('covertype_area_m2', covertype_area_m2)
-      .set('rmn1_protected_area_m2', rmn_protected_area_m2)
-      .set('rmn2_slope_area_m2', rmn_slope_area_m2)
-      .set('rmn3_roads_area_m2', rmn_roads_area_m2)
-      .set('rmn4_riparian_area_m2', rmn_riparian_area_m2)
-      .set('rmn5_administrative_area_m2', rmn_administrative_area_m2)
-      .set('pct_rmn1_protected', pct_rmn1_protected)
-      .set('pct_rmn2_slope', pct_rmn2_slope)
-      .set('pct_rmn3_roads', pct_rmn3_roads)
-      .set('pct_rmn4_riparian', pct_rmn4_riparian)
-      .set('pct_rmn5_administrative', pct_rmn5_administrative)
-    ;
-  // RETURN
-  return new_feature;
-};
-// this is for just new_feature:
-var all_classified_ft_coll = ee.FeatureCollection(
-  my_feature_collection.map(constraint_stats_fn)
-);
-// print(all_classified_ft_coll.first(), 'stats');
-//////////////////////////////////////////////////
-//EXPORTS
-//////////////////////////////////////////////////
-///////////////////////////
-// EXPORT TABLE OF STATS
-///////////////////////////
-  // null geometry so csv can be exported
-  var exprt_ft_coll = all_classified_ft_coll.map(function(ft){
-    var nullfeat = ee.Feature(null);
-    return nullfeat.copyProperties(ft);
-  });
-  // export
-  Export.table.toDrive({
-    collection: exprt_ft_coll,
-    folder: 'GEE_output',
-    description: my_export_prefix+'_statistics',
-    fileFormat: 'CSV'
-  });
+
+    Map.centerObject(my_feature_collection, 10);
+    
+  //////////////////////////////////////////////////////////
+ 
+// get id of feature
+  // var my_feature = my_feature_collection.first();
+  // print(my_feature, 'my_feature');
+  // var ft_id = ee.Feature(my_feature).id();
+  // print(ft_id,'ft_id');
+
+  // var this_image = ee.Image(
+  //   all_classified_img_coll
+  //   .filter(ee.Filter.eq('system:index', ft_id))
+  //   .first()
+  // );
+  // print(this_image, 'this_image');
+
+
+// Map.addLayer(istreatable.unmask(), {palette: ['red', 'teal']}, 'classified mask', 0);
+// Map.addLayer(nlcd_mask, {palette: ['white', 'green']}, 'nlcd mask', 0);
+// Map.addLayer(padus_img.unmask(), {palette: ['white', 'yellow']}, 'padus mask', 0);
+// Map.addLayer(slope_treatable.unmask().not(), {palette: ['white', 'orange']}, 'slope untreatable mask', 0);
+// Map.addLayer(slope_mask.not(), {palette: ['white', 'gold']}, 'slope mask', 0);
+// Map.addLayer(all_roads_img.unmask().not(), {palette: ['white', 'black']}, 'roads mask', 0);
+// Map.addLayer(riparian_buffer.unmask().not().not(), {palette: ['white', 'navy']}, 'riparian mask', 0);
+// Map.addLayer(admin_bounds.unmask().not().not(), {palette: ['white', 'purple']}, 'administrative mask', 0);
+// Map.addLayer(outline, {palette: 'blue'}, 'edges');
+
+Map.addLayer(all_classified_img_coll.first().select('area_classified'), {min:0,max:1,palette: ['red', 'teal']}, 'classified mask', 0);
+Map.addLayer(all_classified_img_coll.first().select('is_selected_nlcd'), {min:0,max:1,palette: ['white', 'green']}, 'nlcd mask', 0);
+Map.addLayer(all_classified_img_coll.first().select('is_protected'), {min:0,max:1,palette: ['white', 'yellow']}, 'padus mask', 0);
+Map.addLayer(all_classified_img_coll.first().select('is_steep_slopes'), {min:0,max:1,palette: ['white', 'orange']}, 'slope untreatable mask', 0);
+Map.addLayer(all_classified_img_coll.first().select('is_roads_distant'), {min:0,max:1,palette: ['white', 'black']}, 'roads mask', 0);
+Map.addLayer(all_classified_img_coll.first().select('is_riparian_buffer'), {min:0,max:1,palette: ['white', 'navy']}, 'riparian mask', 0);
+Map.addLayer(all_classified_img_coll.first().select('is_administrative'), {min:0,max:1,palette: ['white', 'purple']}, 'administrative mask', 0);
+Map.addLayer(outline, {palette: 'blue'}, 'edges');

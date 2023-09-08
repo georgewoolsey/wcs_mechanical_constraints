@@ -1,5 +1,6 @@
-// same as sandbox.js but moving roads to be before admin constraints
-var ex_polygon = ee.FeatureCollection("users/GeorgeWoolsey/unit_bbox");
+// Author: George Woolsey (george.woolsey@colostate.edu)
+// last updated: 2023-09-05
+// description: this is the code to be published with journal article
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // BEGIN: USER-DEFINED PARAMETERS AND DATA
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -9,35 +10,17 @@ var ex_polygon = ee.FeatureCollection("users/GeorgeWoolsey/unit_bbox");
   // .. OR UPLOAD CUSTOM DATA SOURCE:
   // ... https://developers.google.com/earth-engine/guides/table_upload
   //////////////////////////////////////////////////
+    // define feature filtering list
     var ft_list = ee.List([
-      // 'Arapaho and Roosevelt National Forests'
-      // , 'Grand Mesa, Uncompahgre and Gunnison National Forests'
-      // , 'Pike and San Isabel National Forests'
-      // , 'Rio Grande National Forest'
-      // , 'San Juan National Forest'
-      // , 'White River National Forest'
-      // '02','03'
-      'Montana','Utah','New Mexico','Nevada'
+      'Plumas Community Protection'
+      , 'Pine Valley'
     ]);
     var my_feature_collection = 
-    ///////////////// states
-      // ee.FeatureCollection("TIGER/2018/States")
-      //   .filter(ee.Filter.inList('STUSPS', ft_list))
-    ///////////////// usfs forests
-      // ee.FeatureCollection("users/GeorgeWoolsey/L48_USFS_NatlForests")
-      //   // .filter(ee.Filter.inList('COMMONNAME', ft_list))
-      //   .filter(ee.Filter.inList('REGION', ft_list))
     ///////////////// wildfire priority landscapes
       ee.FeatureCollection("projects/forestmgmtconstraint/assets/Wildfire_Crisis_Strategy_Landscapes")
-      // .filter(ee.Filter.inList('STATE', ft_list))
+      // which column should be filtered? ... comment out filter to use all features in data
+      .filter(ee.Filter.inList('NAME', ft_list))
     ;
-    // var my_feature_collection = ex_polygon
-      // .map(function(feature){
-      //   return feature
-      //     .buffer(10000, 100)
-      //   ;
-      // })
-    // ;
     print(my_feature_collection.aggregate_array('NAME'), 'FORESTS TO DO' );
   //////////////////////////////////////////////////
   // 2. DEFINE NLCD LANDCOVER CLASSES TO CONSIDER
@@ -55,18 +38,17 @@ var ex_polygon = ee.FeatureCollection("users/GeorgeWoolsey/unit_bbox");
       var max_slope_pct = 40;
     // C) HOW FAR (FEET) FROM RIPARIAN ZONES SHOULD TREATMENT BE CONSTRAINED?
       var riparian_buffer_feet = 100;
-    // D) ON WHICH LAND DESIGNATION AREAS IS TREATMENT CONSTRAINED BY GAP STATUS CODE?
+    // D) ON WHICH LAND DESIGNATION AREAS IS MECHANICAL PROHIBITED BY GAP STATUS CODE?
       // .. options = 1,2,3,4 alone or in combination
       // see: https://www.usgs.gov/programs/gap-analysis-project/science/pad-us-data-overview
       var gap_status_list = [1];
-    // E) USE ADMINISTRATIVE BOUNDARIES?
+    // E) PROHIBIT MECHANICAL USE WITHIN ADMINISTRATIVE BOUNDARIES?
       // [1] = yes; [0] = no
       var use_admin_yes1_no0 = [1]; 
   //////////////////////////////////////////////////
   // 4. NAME EXPORT FILES PREFIX
   //////////////////////////////////////////////////
     var my_export_prefix = 'wfpriority_all_sc1';
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // END: USER-DEFINED PARAMETERS AND DATA
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -449,34 +431,36 @@ var constraint_image_fn = function(my_feature){
   ;
 
   // treatable
-  var istreatable = rmn_area_administrative.rename(['istreatable']);
+  var is_treatable = rmn_area_administrative.rename(['is_treatable']);
 
-  var area_classified = ee.ImageCollection.fromImages([
-      nlcd_treatable
-        .updateMask(istreatable.unmask().not())
-        .subtract(1)
-        .toInt8()
-        .rename(['istreatable'])
-      , istreatable.toInt8().rename(['istreatable'])
-    ])
-    .mosaic()
-  ;
   // //////////////////////////////////////////////////
   // //RETURN IMAGE COLLECTION
   // //////////////////////////////////////////////////
   // // return area_classified;
   // // return new_feature;
-  return area_classified
-      .addBands(nlcd_mask) // all nlcd pixels in feature : 0/1 selected land classes
-      .addBands(nlcd_treatable) // only selected land classes
-      .addBands(rmn_area_protected) // only selected land classes with protected removed
-      .addBands(rmn_area_slope) // only selected land classes with protected & slope removed
-      .addBands(rmn_area_roads) // only selected land classes with protected, slope, & dist road removed
-      .addBands(rmn_area_riparian) // "..."
-      .addBands(rmn_area_administrative) // "..."
+  return is_treatable.unmask().int8() // all pixels : 0/1 treatable after all constraints considered
+      .addBands(nlcd_mask.int8()) // all nlcd pixels in feature : 0/1 selected land classes
+      .addBands(padus_img.unmask().int8()) // protected areas : 0/1 
+      .addBands(slope_mask.not().int8()) // steep slopes : 0/1 
+      .addBands(all_roads_img.unmask().not().int8()) // roads are distant : 0/1 
+      .addBands(riparian_buffer.unmask().not().not().int8()) // riparian buffer : 0/1 
+      .addBands(admin_bounds.unmask().not().not().int8()) // administrative boundaries : 0/1 
+      // needed for constraint_stats_fn
+      .addBands(nlcd_treatable.int8()) // only selected land classes
+      .addBands(rmn_area_protected.int8()) // only selected land classes with protected removed
+      .addBands(rmn_area_slope.int8()) // only selected land classes with protected & slope removed
+      .addBands(rmn_area_roads.int8()) // only selected land classes with protected, slope, & dist road removed
+      .addBands(rmn_area_riparian.int8()) // "..."
+      .addBands(rmn_area_administrative.int8()) // "..."
     .rename([
-      'area_classified'
-      , 'nlcd_mask'
+      'is_treatable'
+      , 'is_selected_nlcd'
+      , 'is_protected'
+      , 'is_steep_slopes'
+      , 'is_roads_distant'
+      , 'is_riparian_buffer'
+      , 'is_administrative'
+      // needed for constraint_stats_fn
       , 'nlcd_treatable'
       , 'rmn_area_protected'
       , 'rmn_area_slope'
@@ -487,55 +471,12 @@ var constraint_image_fn = function(my_feature){
   ;
 };
 //////////////////////////////////////////////////////////////////////////////
-// call constraint function for AOI
+// call constraint function to map over features
+// ... returns image collection
 //////////////////////////////////////////////////////////////////////////////
 var all_classified_img_coll = ee.ImageCollection(
   my_feature_collection.map(constraint_image_fn)
 );
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// CONVERT IMAGE TO VECTORS FN
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-  var condensed_image_fn = function(my_image) {
-      // get feature id for filtering and setting later
-      var img_id = my_image.get('system:index');
-      // filter feature collection for use in reduce to vectors
-      var this_feature_rightnow = my_feature_collection.filter(ee.Filter.eq('system:index',img_id)).first();
-      var geom = this_feature_rightnow.geometry();
-      // select image band
-      var image_filtered = my_image.select('area_classified').rename('istreatable');
-      // reduce to vectors
-      var vectors = image_filtered
-        .addBands(image_filtered)
-        .reduceToVectors({
-          geometry: geom
-          , crs: nlcd.first().projection()
-          , scale: 30
-          , geometryType: 'polygon'
-          , eightConnected: false
-          , labelProperty: 'istreatable'
-          , reducer: ee.Reducer.mean()
-          , maxPixels: 1e12
-        })
-        .select(['istreatable'])
-        .map(function(feature){
-          return feature.set({'feature_id': img_id});
-        })
-      ;
-      // var condensed_image = vectors
-      //   .reduceToImage({
-      //     properties: ['istreatable'],
-      //     reducer: ee.Reducer.max()
-      //   })
-      //   .rename('istreatable')
-      //   .set({'system:index': img_id})
-      // ;
-      // return condensed_image;
-      return vectors;
-  }
-  var istreatable_ft_coll = ee.FeatureCollection(all_classified_img_coll.map(condensed_image_fn)).flatten();
-  // print(istreatable_ft_coll.first(),'istreatable_ft_coll');
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // STATS CALC FN
@@ -551,7 +492,7 @@ var constraint_stats_fn = function(my_feature) {
     .first()
   );
   // define vars for area calcs
-  var nlcd_mask = this_image.select('nlcd_mask');
+  var nlcd_mask = this_image.select('is_selected_nlcd').rename(['nlcd_mask']);
   var nlcd_treatable = this_image.select('nlcd_treatable');
   var rmn_area_protected = this_image.select('rmn_area_protected');
   var rmn_area_slope = this_image.select('rmn_area_slope');
@@ -681,14 +622,19 @@ var constraint_stats_fn = function(my_feature) {
   // RETURN
   return new_feature;
 };
-// this is for just new_feature:
+//////////////////////////////////////////////////////////////////////////////
+// call stats function to map over features
+// ... returns feature collection
+//////////////////////////////////////////////////////////////////////////////
 var all_classified_ft_coll = ee.FeatureCollection(
   my_feature_collection.map(constraint_stats_fn)
 );
 // print(all_classified_ft_coll.first(), 'stats');
-//////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 //EXPORTS
-//////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////
 // EXPORT TABLE OF STATS
 ///////////////////////////
@@ -703,4 +649,52 @@ var all_classified_ft_coll = ee.FeatureCollection(
     folder: 'GEE_output',
     description: my_export_prefix+'_statistics',
     fileFormat: 'CSV'
+  });
+//////////////////////////////////////
+//////////////////////////////////////
+//////////////////////////////////////
+// export geoTIFF with for loop (client-side)
+//////////////////////////////////////
+//////////////////////////////////////
+//////////////////////////////////////
+  var name_column = 'NAME';
+  var features_names = my_feature_collection.aggregate_array(name_column);
+  features_names.evaluate(function(hey_names){
+    // names is a list so you have to iterate over it
+    for (var n in hey_names) {
+      var nm = hey_names[n];
+      var nm_strrep = ee.String(nm).replace(' ', '_', 'g');
+      var nm_export = ee.String(my_export_prefix).cat('_').cat(nm_strrep);
+      // print(nm_export,'nm_export');
+      // filter features with ftr name
+      var ftr = ee.Feature(my_feature_collection.filter(ee.Filter.eq(name_column, nm)).first());
+      // get feature id
+      var ftr_id = ftr.get('system:index');
+      // filter image collection
+      var this_image = ee.Image(
+        all_classified_img_coll
+        .filter(ee.Filter.eq('system:index', ftr_id))
+        .select([
+          'is_treatable'
+          , 'is_selected_nlcd'
+          , 'is_protected'
+          , 'is_steep_slopes'
+          , 'is_roads_distant'
+          , 'is_riparian_buffer'
+          , 'is_administrative'
+        ])                         // Good.
+        .filterBounds(ftr.geometry())          // Good.
+        .first()
+      );
+      // export ftr
+      Export.image.toDrive({
+        image: this_image,
+        folder: 'GEE_output',
+        description: nm_export.getInfo(),
+        region:ftr.geometry(),
+        scale: 30,
+        crs: 'EPSG:5070',
+        maxPixels: 1e13
+      });
+    }
   });
