@@ -937,6 +937,7 @@ protected_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 ### Steep Slopes
 
 ```{r slopes-map-fn}
+# scales::show_col(viridis::plasma(n = 30))
 # function to plot basemap + slopes
 slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # slopes sc1
@@ -1005,7 +1006,7 @@ slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
           dplyr::rename(f = 3) %>% 
           dplyr::mutate(f=factor(f))
       , mapping = aes(x=x,y=y,fill="40")
-      , alpha = 0.7
+      , alpha = 0.8
       , inherit.aes = F
     ) +
   # scenario 2 slopes
@@ -1054,10 +1055,10 @@ slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
       , lwd = 0.6
       , inherit.aes = F
     ) + 
-    scale_fill_manual(values = c("#febe2a","#f9973e"), na.value = "transparent") +
+    scale_fill_manual(values = c("#febe2a","#f58c46"), na.value = "transparent") +
     labs(
-      title = "Slopes"
-      , subtitle = "<span><span style='color:#febe2a;'><b>Slopes >40%</b></span> | <span style='color:#f9973e;'><b>Slopes >60%</b></span></span>"
+      title = "Steep Slopes"
+      , subtitle = "<span><span style='color:#febe2a;'><b>Slopes >40%</b></span> | <span style='color:#f58c46;'><b>Slopes >60%</b></span></span>"
       , caption = paste0(
           "Slopes >40%: "
           , scales::comma(area_m2_sc1_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
@@ -1083,58 +1084,309 @@ slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 # slopes_map_fn(row_n = 2, rast_agg_fact = 4)
 ```
 
+### Roads Distant
 
-```{r}
-# function to plot scenario constraints + basemap
-scenario_cnstrnt_map_fn <- function(row_n = 1) {
-  plt <- landscape_basemap_fn(row_n) + 
-      geom_sf(
-        data = map_fs_temp %>%
-          dplyr::filter(
-            area_name == area_nm_list[row_n]
-          ) %>%
-          sf::st_transform(crs=plt_crs)
-        , aes(fill = cnstrnt_class), lwd = 0.05
-        , inherit.aes = F
-        , alpha = 0.6
-      ) +
-      geom_sf(
-        data = wf_landscapes %>% 
-          dplyr::filter(
-              area_name == area_nm_list[row_n]
-            ) %>% 
-          sf::st_transform(crs=plt_crs)
-        , fill = NA, color = "black", lwd = 0.3
-        , inherit.aes = F
-      ) +
-      facet_grid(
-        cols = vars(scenario_lab)
-        , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
-        # , switch = "both"
-      ) +
-      scale_fill_manual(values = cols_rdylbu_lt) +
-      labs(
-        fill = "Level of\nConstraint"
-      ) +
-        guides(
-        fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
-      )
-  # return
-  return(plt)
-}
-# scenario_cnstrnt_map_fn(row_n = 9)
-
-geom_sf(
+```{r roads-map-fn}
+# scales::show_col(viridis::plasma(n = 30))
+# function to plot basemap + roads
+roads_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
+  # roads sc1
+  area_m2_sc1_temp <- rast_list_temp[["sc1"]]$is_roads_distant %>% 
+      terra::mask(
+        rast_list_temp[["sc1"]]$is_roads_distant %>% 
+          terra::clamp(lower = 1, upper = 1, values = FALSE)
+      ) %>%
+      terra::mask(
+        wf_landscapes %>%
+          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+          terra::vect() %>%
+          terra::project(terra::crs(rast_list_temp[["sc1"]]$is_roads_distant))
+      ) %>% 
+      terra::freq() %>% 
+      dplyr::filter(value==1) %>% 
+      dplyr::pull(count) *
+        (terra::res(rast_list_temp[["sc1"]]$is_roads_distant) %>% prod())
+  # roads sc2
+  area_m2_sc2_temp <- rast_list_temp[["sc2"]]$is_roads_distant %>% 
+      terra::mask(
+        rast_list_temp[["sc2"]]$is_roads_distant %>% 
+          terra::clamp(lower = 1, upper = 1, values = FALSE)
+      ) %>%
+      terra::mask(
+        wf_landscapes %>%
+          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+          terra::vect() %>%
+          terra::project(terra::crs(rast_list_temp[["sc2"]]$is_roads_distant))
+      ) %>% 
+      terra::freq() %>% 
+      dplyr::filter(value==1) %>% 
+      dplyr::pull(count) *
+        (terra::res(rast_list_temp[["sc2"]]$is_roads_distant) %>% prod())
+  # plot forest and shrub cover
+  plt <- plt_basemap +
+    # scenario 1 roads
+    geom_tile(
+      data = 
+        # scenario 1 roads
+        rast_list_temp[["sc1"]]$is_roads_distant %>% 
+        terra::mask(
+          rast_list_temp[["sc1"]]$is_roads_distant %>% 
+            terra::clamp(lower = 1, upper = 1, values = FALSE)
+        ) %>%
+        # mask area
+        terra::mask(
+          wf_landscapes %>%
+            dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+            terra::vect() %>%
+            terra::project(terra::crs(rast_list_temp[["sc1"]]$is_roads_distant))
+        ) %>% 
+        # aggregate and project
+          terra::aggregate(fact = rast_agg_fact, fun = "modal") %>%
+          terra::as.factor() %>% 
+          terra::project(
+            wf_landscapes %>% 
+              dplyr::filter(
+                  area_name == area_nm_list[row_n]
+                ) %>% 
+              sf::st_transform(crs=plt_crs) %>% 
+              terra::vect() %>%
+              terra::crs()
+          ) %>% 
+          as.data.frame(xy=T) %>% 
+          dplyr::rename(f = 3) %>% 
+          dplyr::mutate(f=factor(f))
+      , mapping = aes(x=x,y=y,fill="1000")
+      , alpha = 0.8
+      , inherit.aes = F
+    ) +
+  # scenario 2 roads
+    geom_tile(
+      data = 
+        # scenario 2 roads
+        rast_list_temp[["sc2"]]$is_roads_distant %>% 
+        terra::mask(
+          rast_list_temp[["sc2"]]$is_roads_distant %>% 
+            terra::clamp(lower = 1, upper = 1, values = FALSE)
+        ) %>%
+        # mask area
+        terra::mask(
+          wf_landscapes %>%
+            dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+            terra::vect() %>%
+            terra::project(terra::crs(rast_list_temp[["sc2"]]$is_roads_distant))
+        ) %>% 
+        # aggregate and project
+          terra::aggregate(fact = rast_agg_fact, fun = "modal") %>%
+          terra::as.factor() %>% 
+          terra::project(
+            wf_landscapes %>% 
+              dplyr::filter(
+                  area_name == area_nm_list[row_n]
+                ) %>% 
+              sf::st_transform(crs=plt_crs) %>% 
+              terra::vect() %>%
+              terra::crs()
+          ) %>% 
+          as.data.frame(xy=T) %>% 
+          dplyr::rename(f = 3) %>% 
+          dplyr::mutate(f=factor(f))
+      , mapping = aes(x=x,y=y,fill="2000")
+      , alpha = 0.7
+      , inherit.aes = F
+    ) +
+    geom_sf(
       data = wf_landscapes %>% 
         dplyr::filter(
             area_name == area_nm_list[row_n]
           ) %>% 
         sf::st_transform(crs=plt_crs)
-      , fill = NA, color = "black", lwd = 0.3
+      , fill = NA
+      , color = "black"
+      , lwd = 0.6
+      , inherit.aes = F
+    ) + 
+    scale_fill_manual(values = c("#e56a5d","#be3885"), na.value = "transparent") +
+    labs(
+      title = "Roads Distant"
+      , subtitle = "<span><span style='color:#e56a5d;'><b>Roads >1,000ft</b></span> | <span style='color:#be3885;'><b>Roads >2,000ft</b></span></span>"
+      , caption = paste0(
+          "Roads >1,000ft: "
+          , scales::comma(area_m2_sc1_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , " ("
+          , scales::comma(area_m2_sc1_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , ")"
+          , " | Roads >2,000ft: "
+          , scales::comma(area_m2_sc2_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , " ("
+          , scales::comma(area_m2_sc2_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , ")"
+        )
+    ) +
+    coord_sf(expand = F) +
+    theme(
+      legend.position = "none"
+      , plot.subtitle = ggtext::element_markdown(size = 10)
+    )
+
+  # return
+  return(plt)
+}
+# roads_map_fn(row_n = 2, rast_agg_fact = 6)
+```
+
+### Riparian Buffer
+
+```{r riparian-map-fn}
+# scales::show_col(viridis::plasma(n = 30))
+# function to plot basemap + riparian
+riparian_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
+  # riparian sc1
+  area_m2_sc1_temp <- rast_list_temp[["sc1"]]$is_riparian_buffer %>% 
+      terra::mask(
+        rast_list_temp[["sc1"]]$is_riparian_buffer %>% 
+          terra::clamp(lower = 1, upper = 1, values = FALSE)
+      ) %>%
+      terra::mask(
+        wf_landscapes %>%
+          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+          terra::vect() %>%
+          terra::project(terra::crs(rast_list_temp[["sc1"]]$is_riparian_buffer))
+      ) %>% 
+      terra::freq() %>% 
+      dplyr::filter(value==1) %>% 
+      dplyr::pull(count) *
+        (terra::res(rast_list_temp[["sc1"]]$is_riparian_buffer) %>% prod())
+  # riparian sc3
+  area_m2_sc3_temp <- rast_list_temp[["sc3"]]$is_riparian_buffer %>% 
+      terra::mask(
+        rast_list_temp[["sc3"]]$is_riparian_buffer %>% 
+          terra::clamp(lower = 1, upper = 1, values = FALSE)
+      ) %>%
+      terra::mask(
+        wf_landscapes %>%
+          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+          terra::vect() %>%
+          terra::project(terra::crs(rast_list_temp[["sc3"]]$is_riparian_buffer))
+      ) %>% 
+      terra::freq() %>% 
+      dplyr::filter(value==1) %>% 
+      dplyr::pull(count) *
+        (terra::res(rast_list_temp[["sc3"]]$is_riparian_buffer) %>% prod())
+  # plot forest and shrub cover
+  plt <- plt_basemap +
+    # scenario 1 riparian
+    geom_tile(
+      data = 
+        # scenario 1 riparian
+        rast_list_temp[["sc1"]]$is_riparian_buffer %>% 
+        terra::mask(
+          rast_list_temp[["sc1"]]$is_riparian_buffer %>% 
+            terra::clamp(lower = 1, upper = 1, values = FALSE)
+        ) %>%
+        # mask area
+        terra::mask(
+          wf_landscapes %>%
+            dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+            terra::vect() %>%
+            terra::project(terra::crs(rast_list_temp[["sc1"]]$is_riparian_buffer))
+        ) %>% 
+        # aggregate and project
+          terra::aggregate(fact = rast_agg_fact, fun = "modal") %>%
+          terra::as.factor() %>% 
+          terra::project(
+            wf_landscapes %>% 
+              dplyr::filter(
+                  area_name == area_nm_list[row_n]
+                ) %>% 
+              sf::st_transform(crs=plt_crs) %>% 
+              terra::vect() %>%
+              terra::crs()
+          ) %>% 
+          as.data.frame(xy=T) %>% 
+          dplyr::rename(f = 3) %>% 
+          dplyr::mutate(f=factor(f))
+      , mapping = aes(x=x,y=y,fill="ft100")
+      , alpha = 0.8
       , inherit.aes = F
     ) +
+  # scenario 3 riparian
+    geom_tile(
+      data = 
+        # scenario 3 riparian
+        rast_list_temp[["sc3"]]$is_riparian_buffer %>% 
+        terra::mask(
+          rast_list_temp[["sc3"]]$is_riparian_buffer %>% 
+            terra::clamp(lower = 1, upper = 1, values = FALSE)
+        ) %>%
+        # mask area
+        terra::mask(
+          wf_landscapes %>%
+            dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+            terra::vect() %>%
+            terra::project(terra::crs(rast_list_temp[["sc3"]]$is_riparian_buffer))
+        ) %>% 
+        # aggregate and project
+          terra::aggregate(fact = rast_agg_fact, fun = "modal") %>%
+          terra::as.factor() %>% 
+          terra::project(
+            wf_landscapes %>% 
+              dplyr::filter(
+                  area_name == area_nm_list[row_n]
+                ) %>% 
+              sf::st_transform(crs=plt_crs) %>% 
+              terra::vect() %>%
+              terra::crs()
+          ) %>% 
+          as.data.frame(xy=T) %>% 
+          dplyr::rename(f = 3) %>% 
+          dplyr::mutate(f=factor(f))
+      , mapping = aes(x=x,y=y,fill="ft50")
+      , alpha = 0.7
+      , inherit.aes = F
+    ) +
+    geom_sf(
+      data = wf_landscapes %>% 
+        dplyr::filter(
+            area_name == area_nm_list[row_n]
+          ) %>% 
+        sf::st_transform(crs=plt_crs)
+      , fill = NA
+      , color = "black"
+      , lwd = 0.6
+      , inherit.aes = F
+    ) + 
+    scale_fill_manual(values = c("#a01a9c","#6e00a8"), na.value = "transparent") +
+    labs(
+      title = "Riparian Buffer"
+      , subtitle = "<span><span style='color:#a01a9c;'><b>Riparian Buffer 100ft</b></span> | <span style='color:#6e00a8;'><b>Riparian Buffer 50ft</b></span></span>"
+      , caption = paste0(
+          "Riparian Buffer 100ft: "
+          , scales::comma(area_m2_sc1_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , " ("
+          , scales::comma(area_m2_sc1_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , ")"
+          , " | Riparian Buffer 50ft: "
+          , scales::comma(area_m2_sc3_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , " ("
+          , scales::comma(area_m2_sc3_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , ")"
+        )
+    ) +
+    coord_sf(expand = F) +
+    theme(
+      legend.position = "none"
+      , plot.subtitle = ggtext::element_markdown(size = 10)
+    )
+
+  # return
+  return(plt)
+}
+# riparian_map_fn(row_n = 2, rast_agg_fact = 2)
 
 ```
+
+
+
 
 
 
