@@ -4375,7 +4375,7 @@ nlcd_reclass_df_temp <- data.frame(
     , by = dplyr::join_by(class_id)
   )
 # load data by wf priority 
-wf_nlcd_area <- readr::read_csv("../data/wildfirepriority/wfpriority_nlcd_area.csv") %>% 
+wf_nlcd_area <- readr::read_csv("../data/wildfirepriority_WCS202306/wfpriority_nlcd_area.csv") %>% 
   dplyr::rename_with(tolower) %>% 
   dplyr::left_join(
     wf_landscapes %>% 

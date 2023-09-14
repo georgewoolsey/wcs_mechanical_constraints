@@ -98,11 +98,11 @@ Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was
 ```{r ls-cnstrnt-dta, results='hide'}
 # load landscape constraint scenario data
 constrained_by_scnro_ls <-
-  list.files("../data/wildfirepriority/landscapes/",pattern = "\\.csv$") %>%
+  list.files("../data/wildfirepriority_WCS202306/landscapes/",pattern = "\\.csv$") %>%
   purrr::keep(stringr::str_starts(.,"wfpriority_all_sc")) %>% 
   purrr::map(function(x){
     readr::read_csv(
-      paste0("../data/wildfirepriority/landscapes/",x)
+      paste0("../data/wildfirepriority_WCS202306/landscapes/",x)
       , name_repair = "universal"
       , col_types = cols(.default = "c")
     ) %>% 
@@ -748,12 +748,11 @@ raster_data_read_fn <- function(row_n = 1) {
     , ".tif$"
   )
   # read all raster data files and stack
-  files_temp <- list.files("../data/wildfirepriority/images/",pattern = nm_temp,recursive = T) 
+  files_temp <- list.files("../data/wildfirepriority_WCS202306/images/",pattern = nm_temp,recursive = T) 
   layers_names <- files_temp %>% stringr::word(1,sep = "/")
   rast_list_temp <- files_temp %>%  
     purrr::map(function(x){
-      terra::rast(paste0("../data/wildfirepriority/images/",x)) 
-        # terra::project(wf_landscapes %>% sf::st_transform(crs=plt_crs) %>% terra::vect() %>% terra::crs())
+      terra::rast(paste0("../data/wildfirepriority_WCS202306/images/",x)) 
     }) %>% 
     # name list objects
     setNames(layers_names) 
@@ -792,6 +791,7 @@ rast2df_fn <- function(sc_n = 1, layer_name = "is_treatable", row_n = 1, rast_ag
         terra::project(terra::crs(rast_list_temp[[sc_n]][[layer_name_index]]))
     ) %>%
     terra::aggregate(fact = rast_agg_fact, fun = "modal") %>%
+    terra::as.factor() %>% 
     terra::project(
       wf_landscapes %>% 
         dplyr::filter(
@@ -874,7 +874,7 @@ landcover_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-landcover_map_fn(row_n = 4, rast_agg_fact = 2)
+# landcover_map_fn(row_n = 4, rast_agg_fact = 2)
 ```
 
 ### Protected Area
@@ -944,7 +944,7 @@ protected_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-protected_map_fn(row_n = 4, rast_agg_fact = 2)
+# protected_map_fn(row_n = 4, rast_agg_fact = 6)
 ```
 
 ### Steep Slopes
@@ -1050,7 +1050,7 @@ slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-slopes_map_fn(row_n = 4, rast_agg_fact = 2)
+# slopes_map_fn(row_n = 4, rast_agg_fact = 6)
 ```
 
 ### Roads Distant
@@ -1156,7 +1156,7 @@ roads_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-roads_map_fn(row_n = 4, rast_agg_fact = 2)
+# roads_map_fn(row_n = 4, rast_agg_fact = 6)
 ```
 
 ### Riparian Buffer
@@ -1262,7 +1262,7 @@ riparian_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-riparian_map_fn(row_n = 4, rast_agg_fact = 2)
+# riparian_map_fn(row_n = 4, rast_agg_fact = 6)
 ######## export image
 # ggplot2::ggsave(
 #     filename = paste0("../data/xxx_riparian_fact2.png")
@@ -1342,7 +1342,7 @@ administrative_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-administrative_map_fn(row_n = 4, rast_agg_fact = 2)
+# administrative_map_fn(row_n = 4, rast_agg_fact = 6)
 ```
 
 ### Overall Mechanically Constrained/Available
@@ -1433,7 +1433,7 @@ treatable_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-treatable_map_fn(row_n = 4, rast_agg_fact = 2)
+treatable_map_fn(row_n = 4, rast_agg_fact = 5)
 ######## export image
 ggplot2::ggsave(
     filename = paste0("../data/xxx_istreatable.png")
