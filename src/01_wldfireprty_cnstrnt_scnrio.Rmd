@@ -151,6 +151,7 @@ wf_landscapes <- sf::read_sf("../data/Wildfire_Crisis_Strategy_Landscapes/Wildfi
   ) %>% 
   # manual label placement
   dplyr::left_join(
+    # readr::read_csv("../data/wildfirepriority_WCS202306/area_label_placement.csv")
     readr::read_csv("../data/wildfirepriority/area_label_placement.csv")
     , by = dplyr::join_by("area_name")
   )
@@ -170,10 +171,12 @@ Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was
 ```{r ls-cnstrnt-dta, results='hide'}
 # load landscape constraint scenario data
 constrained_by_scnro_ls <-
+  # list.files("../data/wildfirepriority_WCS202306/landscapes/",pattern = "\\.csv$") %>%
   list.files("../data/wildfirepriority/landscapes/",pattern = "\\.csv$") %>%
   purrr::keep(stringr::str_starts(.,"wfpriority_all_sc")) %>% 
   purrr::map(function(x){
     readr::read_csv(
+      # paste0("../data/wildfirepriority_WCS202306/landscapes/",x)
       paste0("../data/wildfirepriority/landscapes/",x)
       , name_repair = "universal"
       , col_types = cols(.default = "c")
@@ -665,11 +668,14 @@ plt_basemap +
   ) +
   geom_sf(
     data = wf_landscapes
-    , mapping = aes(color = paste0(investment, " investment"))
+    , mapping = aes(
+      color = paste0(investment, " investment")
+      # , linetype = paste0(investment, " investment")
+    )
     , fill=NA
     # , color="black" 
-    , lwd=0.6
-  )+
+    , lwd=0.7
+  ) +
   geom_text(
     data = wf_landscapes %>% 
         sf::st_drop_geometry() %>% 
@@ -696,10 +702,11 @@ plt_basemap +
     , show.legend = F
   ) +
   scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
-  scale_color_manual(values = c("black", "gray33")) +
+  scale_color_manual(values = c("gray11", "navy")) + # midnightblue
   labs(
     fill = "Fireshed\nHigh-Risk Status"
     , color = "Landscapes"
+    # , linetype = "Landscapes"
   ) +
   theme(
       legend.position = c(0.87,0.87) # "top"
@@ -717,12 +724,11 @@ ggplot2::ggsave(
     filename = paste0("../data/plt_map_ls_fshed.png")
     , plot = ggplot2::last_plot()
     , width = 8.5
-    , height = 11
+    , height = 7
     , units = "in"
     , dpi = "print"
     , bg = "white"
   )
-
 ```
 
 The boundaries of the 21 priority landscapes roughly follow the boundaries of "firesheds" prioritized to reduce wildfire transmission to developed areas (Figure 1). Firesheds are geographic delineations with an average area of approximately 250,000 acres (~100,000 hectares) that were created to organize the landscape into units for managing wildfire risk to communities.
@@ -747,7 +753,7 @@ plt_basemap +
     , mapping = aes(color = paste0(investment, " investment"))
     , fill=NA
     # , color="black" 
-    , lwd=0.6
+    , lwd=0.7
   )+
   geom_text(
     data = wf_landscapes %>% 
@@ -775,7 +781,7 @@ plt_basemap +
     , show.legend = F
   ) +
   scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
-  scale_color_manual(values = c("black", "gray33")) +
+  scale_color_manual(values = c("black", "navy")) +
   labs(
     fill = "Fireshed\nHigh-Risk Status"
     , color = "Landscapes"
@@ -1120,11 +1126,11 @@ constrained_by_scnro_ls_pa <- constrained_by_scnro_ls_pa %>%
     dplyr::mutate(
       dplyr::across(
         tidyselect::ends_with("_ha")
-        , ~ scales::comma(.x, accuracy = 1)
+        , ~ scales::comma(.x, suffix = "k", scale = 1e-3, accuracy = 1)
       )
       , dplyr::across(
         tidyselect::starts_with("pct_")
-        , ~ scales::percent(.x, accuracy = 0.1)
+        , ~ scales::percent(.x, accuracy = .1)
       )
     ) %>% 
     dplyr::select(
@@ -2329,7 +2335,7 @@ largest_patch_map_fn <- function(nrow = 1){
   # return
   return(plt)
 }
-# largest_patch_map_fn(13)
+# largest_patch_map_fn(20)
 ```
 
 ```{r patch-plt-print}
@@ -2338,7 +2344,7 @@ plt_ptch_list <- 1:length(area_nm_list) %>%
   purrr::map(largest_patch_map_fn)
 # scenario_maps
 plt_ptch_list[]
-# save
+# save export images for publication
 1:length(plt_ptch_list) %>% 
   purrr::map(function(x){
       ggplot2::ggsave(
@@ -2503,7 +2509,7 @@ Planning fewer, larger individual treatments across the landscape appears to be 
 
 ```{r hi-low-patch-comp, fig.height=10}
 # aggregate to constraint class level
-cnstrnt_class_patches %>% 
+agg_cnstrnt_class_patches_temp <- cnstrnt_class_patches %>% 
   sf::st_drop_geometry() %>% 
   dplyr::group_by(area_name, scenario_lab, cnstrnt_class) %>% 
   dplyr::summarize(
@@ -2521,10 +2527,11 @@ cnstrnt_class_patches %>%
   ) %>% 
   dplyr::filter(
     cnstrnt_class!="med. constraint"
-  ) %>% 
+  )
 # plot
 ggplot(
-  mapping = aes(
+  data = agg_cnstrnt_class_patches_temp
+  , mapping = aes(
     y = scenario_lab
     , x = max_pct_patch_landscape_hack
     , fill = cnstrnt_class
@@ -2629,6 +2636,204 @@ ggplot2::ggsave(
     , dpi = "print"
   )
 ```
+
+Combine map with proportion of overall landscape in largest patch plot for publication
+
+```{r patch-map-bars-combo}
+# select area name from area_nm_list
+area_num_temp <- 20
+# plot large patch proportion of area horizontal to match map
+plt_patch_prop_temp <- 
+  ggplot(
+    data = agg_cnstrnt_class_patches_temp %>%
+      dplyr::filter(area_name==area_nm_list[area_num_temp]) %>% 
+      dplyr::mutate(scenario_lab = forcats::fct_rev(scenario_lab))
+    , mapping = aes(
+      y = 1
+      , x = max_pct_patch_landscape_hack
+      , fill = cnstrnt_class
+      , group = cnstrnt_class
+    )
+  ) +
+    geom_col(
+      width = 0.7, alpha = 0.9
+    ) +
+    geom_vline(xintercept = 0, color = "gray55", linetype = "solid", linewidth = 0.7) +
+    geom_text(
+      mapping = aes(
+        label = ifelse(
+          max_pct_patch_landscape_hack<0
+          , scales::percent(max_pct_patch_landscape, accuracy = 1)
+          , ""
+        )
+        , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+        , fontface = "bold"
+      )
+      , color = "black", size = 4
+      , hjust = +1
+    ) +
+    geom_text(
+      mapping = aes(
+        label = ifelse(
+          max_pct_patch_landscape_hack>=0
+          , scales::percent(max_pct_patch_landscape, accuracy = 1)
+          , ""
+        )
+        , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+        , fontface = "bold"
+      )
+      , color = "black", size = 4
+      , hjust = 0
+    ) +
+    # label ha below pct
+    geom_text(
+      mapping = aes(
+        label = ifelse(
+          max_pct_patch_landscape_hack<0
+          , paste0(
+              scales::comma(max_patch_area_ha,suffix = "k", scale = 1e-3, accuracy = 1)
+              , " ha"
+          )
+          , ""
+        )
+        , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+        , fontface = "bold"
+      )
+      , color = "black", size = 2.7
+      , hjust = +1
+      , vjust = 1.9
+    ) +
+    geom_text(
+      mapping = aes(
+        label = ifelse(
+          max_pct_patch_landscape_hack>=0
+          , paste0(
+              scales::comma(max_patch_area_ha,suffix = "k", scale = 1e-3, accuracy = 1)
+              , " ha"
+          )
+          , ""
+        )
+        , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+        , fontface = "bold"
+      )
+      , color = "black", size = 2.7
+      , hjust = 0
+      , vjust = 1.9
+    ) +
+    annotate(
+      geom = "text"
+      , x = -0.85
+      , y = 0.0
+      , label = "high constraint"
+      , color = cols_rdylbu_lt[3]
+      , fontface = "bold"
+      , size = 2.5
+    ) +
+    annotate(
+      geom = "text"
+      , x = 0.85
+      , y = 0.0
+      , label = "low constraint"
+      , color = cols_rdylbu_lt[1]
+      , fontface = "bold"
+      , size = 2.5
+    ) +
+    scale_fill_manual(values = cols_rdylbu_lt) +
+    scale_x_continuous(
+      limits = c(-1.22,1.22)
+      , labels = scales::percent_format()
+      , position = "bottom"
+    ) +
+    scale_y_discrete() +
+    facet_grid(
+      cols = vars(scenario_lab)
+      , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+      # , switch = "both"
+    ) +
+    labs(
+      fill = "Level of\nConstraint"
+      , subtitle = "" # "percentage of total landscape area comprised by the largest patch" # "Largest Patch % of Landscape Area"
+      , x = "Percent of Overall Landscape Area Comprised by the Largest Patch" # "Largest Patch % of Landscape Area"
+      , y = ""
+    ) +
+    theme_light() +
+    theme(
+      legend.position = "none" # "top"
+      , legend.direction  = "horizontal"
+      , legend.title = element_text(size=7)
+      , axis.title.x = element_text(size=8, face = "bold")
+      , axis.title.y = element_blank()
+      , axis.text.x = element_blank()
+      , axis.ticks.x = element_blank()
+      , panel.grid.major = element_blank()
+      , panel.grid.minor = element_blank()
+      , strip.text = element_text(color = "black", face = "bold", size = 8)
+      # , strip.text = element_blank()
+    ) +
+    guides(
+      fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
+    )
+# combine
+cowplot::plot_grid(
+    plotlist = list(
+      plt_ptch_list[[area_num_temp]] + 
+        theme(
+          legend.position = "top"
+          , plot.title = element_blank()
+          , plot.margin = margin(0.5,0.1,0,0.1, "cm")
+        )
+      # , plt_fshed_pa + 
+      #   theme(
+      #     plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
+      #     , plot.margin = margin(0.5,3,0.5,0.5, "cm")
+      #   )
+      , plt_patch_prop_temp +
+        theme(
+          plot.margin = margin(0,0.9,0.5,0.9, "cm")
+        )
+      #######################################
+      # , cowplot::plot_grid(
+      #   plotlist = list(
+      #     NULL
+      #     , plt_patch_prop_temp +
+      #       theme(
+      #         plot.margin = margin(0,0.2,0.5,0.2, "cm")
+      #       )
+      #     , NULL
+      #   )
+      #   , nrow = 1
+      #   , rel_widths = c(0.1,1,0.1)
+      # )
+      ######################################
+      # , plt_fshed_pa_incl + 
+      #   theme(
+      #     plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
+      #     , plot.margin = margin(0.5,3,0.5,0.5, "cm")
+      #   )
+    )
+    , ncol = 1
+    , axis = "lr"
+    , align = "v"
+    , rel_heights = c(1, 0.25)
+    , labels = c("A","B")
+    , label_size = 17
+    , label_fontface = "bold"
+    , label_colour = "gray11"
+    # , label_y = 0.99
+  ) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+# export
+ggplot2::ggsave(
+    filename = paste0("../data/plt_ex_patch_map_bars_combo.png")
+    , plot = ggplot2::last_plot()
+    , width = 7.7
+    , height = 7
+    , units = "in"
+    , dpi = "print"
+  )
+
+```
+
 
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
