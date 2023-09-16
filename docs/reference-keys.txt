@@ -43,9 +43,3 @@ distribution-of-fireshed-pa-constraint-1
 combine-map-and-fireshed-plot
 landcover-class-area
 overall-landscape
-fireshed-project-areas-1
-nlcd-cover-type-high-risk-firesheds
-nlcd-cover-type-vs.-mechanically-available
-distribution-of-mechanically-available-shrb-vs.-frst
-distribution-of-fireshed-pa-constraint-shrb-vs.-frst
-high-risk-distribution-of-fireshed-pa-constraint-shrb-vs.-frst
