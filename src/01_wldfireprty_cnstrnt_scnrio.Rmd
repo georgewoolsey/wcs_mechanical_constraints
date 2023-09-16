@@ -151,8 +151,7 @@ wf_landscapes <- sf::read_sf("../data/Wildfire_Crisis_Strategy_Landscapes/Wildfi
   ) %>% 
   # manual label placement
   dplyr::left_join(
-    # readr::read_csv("../data/wildfirepriority_WCS202306/area_label_placement.csv")
-    readr::read_csv("../data/wildfirepriority/area_label_placement.csv")
+    readr::read_csv("../data/wildfirepriority_WCS202308/area_label_placement.csv")
     , by = dplyr::join_by("area_name")
   )
 #rename sf geom column
@@ -171,13 +170,11 @@ Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was
 ```{r ls-cnstrnt-dta, results='hide'}
 # load landscape constraint scenario data
 constrained_by_scnro_ls <-
-  # list.files("../data/wildfirepriority_WCS202306/landscapes/",pattern = "\\.csv$") %>%
-  list.files("../data/wildfirepriority/landscapes/",pattern = "\\.csv$") %>%
+  list.files("../data/wildfirepriority_WCS202308/landscapes/",pattern = "\\.csv$") %>%
   purrr::keep(stringr::str_starts(.,"wfpriority_all_sc")) %>% 
   purrr::map(function(x){
     readr::read_csv(
-      # paste0("../data/wildfirepriority_WCS202306/landscapes/",x)
-      paste0("../data/wildfirepriority/landscapes/",x)
+      paste0("../data/wildfirepriority_WCS202308/landscapes/",x)
       , name_repair = "universal"
       , col_types = cols(.default = "c")
     ) %>% 
@@ -418,18 +415,18 @@ Fireshed project area constraint analysis data (i.e., row unique by WCS landscap
 ```{r fs-ld-dta}
 # load fireshed constraint scenario data
 constrained_by_scnro_ls_pa <-
-  list.files("../data/wildfirepriority/fireshed_slp/",pattern = "\\.csv$") %>%
-  purrr::keep(stringr::str_starts(.,"wfpriority_fireshed_slp_sc")) %>% 
+  list.files("../data/wildfirepriority_WCS202308/fireshed/",pattern = "\\.csv$") %>%
+  purrr::keep(stringr::str_starts(.,"wfpriority_fireshed_sc")) %>% 
   purrr::map(function(x){
     readr::read_csv(
-      paste0("../data/wildfirepriority/fireshed_slp/",x)
+      paste0("../data/wildfirepriority_WCS202308/fireshed/",x)
       , name_repair = "universal"
       , col_types = cols(.default = "c")
     ) %>% 
     dplyr::rename_with(tolower) %>% 
     dplyr::rename_with(make.names) %>% 
     dplyr::select(state,name,pa_id,tidyselect::ends_with("_m2"),tidyselect::starts_with("pct_")) %>% 
-    dplyr::mutate(scenario_id = stringr::word(x,4,sep="_") %>% readr::parse_number()) %>% 
+    dplyr::mutate(scenario_id = stringr::word(x,3,sep="_") %>% readr::parse_number()) %>% 
     dplyr::relocate(scenario_id)
   }) %>%
   dplyr::bind_rows() %>%
@@ -1157,14 +1154,14 @@ constrained_by_scnro_ls_pa <- constrained_by_scnro_ls_pa %>%
       , caption = "<b>Wildfire Crisis Strategy 21 Priority Landscapes</b><br>percent reduction of different types of constraints on mechanical treatment"
       , col.names = c(
         ""
-        , "Forest+Shrub\n(ha)", "Forest+Shrub\n%"
+        , "Forest+Shrub\n(ha)", "Forest+Shrub\n(%)"
         , "Protected"
         , "Slope\nSteepness"
         , "Road\nDistance"
         , "Riparian\nBuffer"
         , "Administrative"
-        , "Remaining (ha)"
-        , "Remaining (%)"
+        , "Mechanically\nAvailable (ha)"
+        , "Mechanically\nAvailable (%)"
       )
       , escape = F
     ) %>%  
@@ -4375,7 +4372,7 @@ nlcd_reclass_df_temp <- data.frame(
     , by = dplyr::join_by(class_id)
   )
 # load data by wf priority 
-wf_nlcd_area <- readr::read_csv("../data/wildfirepriority_WCS202306/wfpriority_nlcd_area.csv") %>% 
+wf_nlcd_area <- readr::read_csv("../data/wildfirepriority_WCS202308/wfpriority_nlcd_area.csv") %>% 
   dplyr::rename_with(tolower) %>% 
   dplyr::left_join(
     wf_landscapes %>% 
@@ -4463,7 +4460,7 @@ What is the landcover classification of the fireshed project area units? This [G
 ```{r nlcd-area-dta}
 # load nlcd cover data by fireshed project area
 nlcd_area_ls_pa <- 
-  readr::read_csv("../data/wildfirepriority/wfpriority_fireshed_nlcd_area.csv") %>% 
+  readr::read_csv("../data/wildfirepriority_WCS202308/wfpriority_fireshed_nlcd_area.csv") %>% 
   dplyr::rename_with(tolower) %>% 
   dplyr::select(
     pa_id

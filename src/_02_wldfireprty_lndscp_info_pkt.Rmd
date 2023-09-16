@@ -20,7 +20,7 @@ library(latex2exp)
 library(kableExtra)
 library(cowplot)
 library(RColorBrewer)
-library(ggtext)
+library(ggpubr) #creating and customizing ggplot2-based publication ready plots
 library(mapview) #Interactive maps
 library(leafpop) #map html popup
 library(tidytext) # reorder within facets
@@ -79,7 +79,7 @@ wf_landscapes <- sf::read_sf("../data/Wildfire_Crisis_Strategy_Landscapes/Wildfi
   )
   # manual label placement
   # dplyr::left_join(
-  #   readr::read_csv("../data/wildfirepriority/area_label_placement.csv")
+  #   readr::read_csv("../data/wildfirepriority_WCS202308/area_label_placement.csv")
   #   , by = dplyr::join_by("area_name")
   # )
 #rename sf geom column
@@ -98,11 +98,11 @@ Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was
 ```{r ls-cnstrnt-dta, results='hide'}
 # load landscape constraint scenario data
 constrained_by_scnro_ls <-
-  list.files("../data/wildfirepriority_WCS202306/landscapes/",pattern = "\\.csv$") %>%
+  list.files("../data/wildfirepriority_WCS202308/landscapes/",pattern = "\\.csv$") %>%
   purrr::keep(stringr::str_starts(.,"wfpriority_all_sc")) %>% 
   purrr::map(function(x){
     readr::read_csv(
-      paste0("../data/wildfirepriority_WCS202306/landscapes/",x)
+      paste0("../data/wildfirepriority_WCS202308/landscapes/",x)
       , name_repair = "universal"
       , col_types = cols(.default = "c")
     ) %>% 
@@ -343,18 +343,18 @@ Fireshed project area constraint analysis data (i.e., row unique by WCS landscap
 ```{r fs-ld-dta}
 # load fireshed constraint scenario data
 constrained_by_scnro_ls_pa <-
-  list.files("../data/wildfirepriority/fireshed_slp/",pattern = "\\.csv$") %>%
-  purrr::keep(stringr::str_starts(.,"wfpriority_fireshed_slp_sc")) %>% 
+  list.files("../data/wildfirepriority_WCS202308/fireshed/",pattern = "\\.csv$") %>%
+  purrr::keep(stringr::str_starts(.,"wfpriority_fireshed_sc")) %>% 
   purrr::map(function(x){
     readr::read_csv(
-      paste0("../data/wildfirepriority/fireshed_slp/",x)
+      paste0("../data/wildfirepriority_WCS202308/fireshed/",x)
       , name_repair = "universal"
       , col_types = cols(.default = "c")
     ) %>% 
     dplyr::rename_with(tolower) %>% 
     dplyr::rename_with(make.names) %>% 
     dplyr::select(state,name,pa_id,tidyselect::ends_with("_m2"),tidyselect::starts_with("pct_")) %>% 
-    dplyr::mutate(scenario_id = stringr::word(x,4,sep="_") %>% readr::parse_number()) %>% 
+    dplyr::mutate(scenario_id = stringr::word(x,3,sep="_") %>% readr::parse_number()) %>% 
     dplyr::relocate(scenario_id)
   }) %>%
   dplyr::bind_rows() %>%
@@ -440,7 +440,7 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
-## Landscape Mapping
+## Functions: Landscape Mapping 
 
 ### Define Basemap
 
@@ -621,14 +621,14 @@ landscape_basemap_fn <- function(row_n=1) {
       , legend.title = element_text(size = 9, face = "bold")
       , legend.text = element_text(size = 9)
       , legend.margin = margin(c(0,0,-10,0))
-      , plot.title = element_text(size = 12, hjust = 0.5, face = "bold")
+      , plot.title = element_text(size = 10, face = "bold") #, hjust = 0.5
       , strip.text = element_text(size = 10, color = "black", face = "bold")
       , axis.title = element_blank()
       , axis.text = element_blank()
       , axis.ticks = element_blank()
       , panel.grid = element_blank()
       , plot.margin = margin(0, 0, 0, 0, "cm")
-      , plot.caption = element_text(size = 11, color = "black", hjust = 0, vjust = 3)
+      , plot.caption = element_text(size = 9, color = "black", hjust = 0, vjust = 3)
     )
   # return
   return(plt)
@@ -636,7 +636,8 @@ landscape_basemap_fn <- function(row_n=1) {
 # landscape_basemap_fn(row_n = 2)
 ###### set plot basemap in global function
 # uncomment for testing
-plt_basemap <- landscape_basemap_fn(row_n = 4)
+plt_basemap <- NULL
+# plt_basemap <- landscape_basemap_fn(row_n = 4)
 ```
 
 ### Plot of Nested Fireshed Spatial Framework
@@ -727,7 +728,7 @@ spatial_frmwrk_map_fn <- function(row_n = 1) {
   # return
   return(plt)
 }
-spatial_frmwrk_map_fn(row_n = 4)
+# spatial_frmwrk_map_fn(row_n = 4)
 ```
 
 ### Read Raster Data Function
@@ -748,19 +749,22 @@ raster_data_read_fn <- function(row_n = 1) {
     , ".tif$"
   )
   # read all raster data files and stack
-  files_temp <- list.files("../data/wildfirepriority_WCS202306/images/",pattern = nm_temp,recursive = T) 
+  files_temp <- list.files("../data/wildfirepriority_WCS202308/images/",pattern = nm_temp,recursive = T) 
   layers_names <- files_temp %>% stringr::word(1,sep = "/")
   rast_list_temp <- files_temp %>%  
     purrr::map(function(x){
-      terra::rast(paste0("../data/wildfirepriority_WCS202306/images/",x)) 
+      terra::rast(paste0("../data/wildfirepriority_WCS202308/images/",x)) 
     }) %>% 
     # name list objects
     setNames(layers_names) 
   # return
   return(rast_list_temp)
 }
-rast_list_temp <- raster_data_read_fn(row_n = 4)
+rast_list_temp <- NULL
+# rast_list_temp <- raster_data_read_fn(row_n = 4)
 ```
+
+Define function to select, aggregate, filter, and create data frame from raster
 
 ```{r rast2df-fn}
 # define function to select, aggregate, filter, and df from raster
@@ -807,18 +811,62 @@ rast2df_fn <- function(sc_n = 1, layer_name = "is_treatable", row_n = 1, rast_ag
       f=factor(f)
       , scenario_lab = paste0("Scenario ", sc_n)
       , layer_name = layer_name
+      , area_name = area_nm_list[row_n]
     )
 }
 ```
 
+Define function to select raster and aggregate area
 
+```{r rast-area-fn}
+rast_area_fn <- function(sc_n = 1, layer_name = "is_treatable", row_n = 1){
+  # find index of layer name
+  layer_name_index <- rast_list_temp[[sc_n]] %>% 
+    names() %>% 
+    purrr::detect_index(function(x) x == layer_name)
+  # df area for caption
+  area_df <- rast_list_temp[[sc_n]][[layer_name_index]] %>%
+    terra::mask(
+      wf_landscapes %>%
+        dplyr::filter(area_name==area_nm_list[row_n]) %>%
+        terra::vect() %>%
+        terra::project(terra::crs(rast_list_temp[[sc_n]][[layer_name_index]]))
+    ) %>%
+    terra::project(
+      wf_landscapes %>%
+        dplyr::filter(area_name==area_nm_list[row_n]) %>%
+        sf::st_transform(5070) %>% # transform to GEE proj used for calcs
+        terra::vect() %>% 
+        terra::crs()
+    ) %>%
+    terra::freq() %>%
+    dplyr::as_tibble() %>% 
+    dplyr::mutate(
+      area_m2 = count * (terra::res(rast_list_temp[[sc_n]][[layer_name_index]]) %>% prod())
+      , area_pct = area_m2 / sum(area_m2, na.rm = T)
+      # labels
+      , area_ha = area_m2/10000
+      , area_acres = area_m2/4046.85642
+      , area_ha_lab = scales::comma(area_ha, suffix = "k", scale = 1e-3, accuracy = 1)
+      , area_acres_lab = scales::comma(area_acres, suffix = "k", scale = 1e-3, accuracy = 1)
+      , area_pct_lab = scales::percent(area_pct, accuracy = 1)
+      # data str
+      , scenario_lab = paste0("Scenario ", sc_n)
+      , layer_name = layer_name
+      , area_name = area_nm_list[row_n]
+    )
+  # return
+  return(area_df)
+}
+# rast_area_fn(row_n = 4, layer_name = "is_protected")
+```
 
 ### Forest and Shrub Land Cover
 
 ```{r landcover-map-fn}
 # function to plot basemap + forest&shrub
 landcover_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
-  # area for caption
+  # area for caption using data to match reported in publication
   area_temp <- constrained_by_scnro_ls %>% 
     dplyr::filter(scenario_id==1 & area_name == area_nm_list[row_n]) %>% 
     dplyr::mutate(covertype_area_acres=(covertype_area_ha*10000)/4046.85642) %>% 
@@ -855,10 +903,10 @@ landcover_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
     ) + 
     scale_fill_manual(values = c("forestgreen"), na.value = "transparent") +
     labs(
-      title = "Forest and Shrub Land Cover"
+      title = "Forest & Shrub Land Cover"
       , subtitle = "<span><span style='color:forestgreen;'><b>Forest & Shrub</b></span>"
       , caption = paste0(
-          "Forest and Shrub Cover: "
+          "Forest & Shrub: "
           , area_temp$covertype_area_acres[1], " acres"
           , " ("
           , area_temp$covertype_area_ha[1], " ha"
@@ -874,7 +922,7 @@ landcover_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-# landcover_map_fn(row_n = 4, rast_agg_fact = 2)
+# landcover_map_fn(row_n = 4, rast_agg_fact = 5)
 ```
 
 ### Protected Area
@@ -882,22 +930,8 @@ landcover_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 ```{r protected-map-fn}
 # function to plot basemap + protected
 protected_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
-  # area for caption
-  area_m2_temp <- rast_list_temp[["sc1"]]$is_protected %>% 
-    terra::mask(
-      rast_list_temp[["sc1"]]$is_protected %>% 
-        terra::clamp(lower = 1, upper = 1, values = FALSE)
-    ) %>%
-    terra::mask(
-      wf_landscapes %>%
-        dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-        terra::vect() %>%
-        terra::project(terra::crs(rast_list_temp[["sc1"]]$is_protected))
-    ) %>% 
-    terra::freq() %>% 
-    dplyr::filter(value==1) %>% 
-    dplyr::pull(count) *
-      (terra::res(rast_list_temp[["sc1"]]$is_protected) %>% prod())
+  # area_df
+  area_df <- rast_area_fn(sc_n = 1, layer_name = "is_protected", row_n = row_n)
   # plot forest and shrub cover
   plt <- plt_basemap +
     geom_tile(
@@ -923,15 +957,21 @@ protected_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
       , lwd = 0.6
       , inherit.aes = F
     ) + 
-    scale_fill_manual(values = c("#f0f921"), na.value = "transparent") +
+    scale_fill_manual(values = c("#fadb24"), na.value = "transparent") +
     labs(
-      title = "Protected and Inventoried Roadless Areas"
-      , subtitle = "<span><span style='color:#f0f921;'><b>Protected & IRA</b></span>"
+      title = "Protected & Inventoried Roadless Areas"
+      , subtitle = "<span><span style='color:#fadb24;'><b>Protected & IRA</b></span>"
       , caption = paste0(
-          "Protected and Inventoried Roadless Areas: "
-          , scales::comma(area_m2_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          "Protected & IRA: "
+          , area_df %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_acres_lab)
+          , " acres"
           , " ("
-          , scales::comma(area_m2_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , area_df %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_ha_lab)
+          , " ha"
           , ")"
         )
     ) +
@@ -953,38 +993,10 @@ protected_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 # scales::show_col(viridis::plasma(n = 30))
 # function to plot basemap + slopes
 slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
-  # slopes sc1
-  area_m2_sc1_temp <- rast_list_temp[["sc1"]]$is_steep_slopes %>% 
-      terra::mask(
-        rast_list_temp[["sc1"]]$is_steep_slopes %>% 
-          terra::clamp(lower = 1, upper = 1, values = FALSE)
-      ) %>%
-      terra::mask(
-        wf_landscapes %>%
-          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-          terra::vect() %>%
-          terra::project(terra::crs(rast_list_temp[["sc1"]]$is_steep_slopes))
-      ) %>% 
-      terra::freq() %>% 
-      dplyr::filter(value==1) %>% 
-      dplyr::pull(count) *
-        (terra::res(rast_list_temp[["sc1"]]$is_steep_slopes) %>% prod())
-  # slopes sc2
-  area_m2_sc2_temp <- rast_list_temp[["sc2"]]$is_steep_slopes %>% 
-      terra::mask(
-        rast_list_temp[["sc2"]]$is_steep_slopes %>% 
-          terra::clamp(lower = 1, upper = 1, values = FALSE)
-      ) %>%
-      terra::mask(
-        wf_landscapes %>%
-          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-          terra::vect() %>%
-          terra::project(terra::crs(rast_list_temp[["sc2"]]$is_steep_slopes))
-      ) %>% 
-      terra::freq() %>% 
-      dplyr::filter(value==1) %>% 
-      dplyr::pull(count) *
-        (terra::res(rast_list_temp[["sc2"]]$is_steep_slopes) %>% prod())
+  # area_df
+  area_df1 <- rast_area_fn(sc_n = 1, layer_name = "is_steep_slopes", row_n = row_n)
+  # area_df
+  area_df2 <- rast_area_fn(sc_n = 2, layer_name = "is_steep_slopes", row_n = row_n)
   # plot forest and shrub cover
   plt <- plt_basemap +
     # scenario 1 slopes
@@ -1030,14 +1042,27 @@ slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
       , subtitle = "<span><span style='color:#febe2a;'><b>Slopes >40%</b></span> | <span style='color:#f58c46;'><b>Slopes >60%</b></span></span>"
       , caption = paste0(
           "Slopes >40%: "
-          , scales::comma(area_m2_sc1_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , area_df1 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_acres_lab)
+          , " acres"
           , " ("
-          , scales::comma(area_m2_sc1_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , area_df1 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_ha_lab)
+          , " ha"
           , ")"
-          , " | Slopes >60%: "
-          , scales::comma(area_m2_sc2_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+        # sc2 slopes
+          , "\nSlopes >60%: "
+          , area_df2 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_acres_lab)
+          , " acres"
           , " ("
-          , scales::comma(area_m2_sc2_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , area_df2 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_ha_lab)
+          , " ha"
           , ")"
         )
     ) +
@@ -1059,38 +1084,10 @@ slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 # scales::show_col(viridis::plasma(n = 30))
 # function to plot basemap + roads
 roads_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
-  # roads sc1
-  area_m2_sc1_temp <- rast_list_temp[["sc1"]]$is_roads_distant %>% 
-      terra::mask(
-        rast_list_temp[["sc1"]]$is_roads_distant %>% 
-          terra::clamp(lower = 1, upper = 1, values = FALSE)
-      ) %>%
-      terra::mask(
-        wf_landscapes %>%
-          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-          terra::vect() %>%
-          terra::project(terra::crs(rast_list_temp[["sc1"]]$is_roads_distant))
-      ) %>% 
-      terra::freq() %>% 
-      dplyr::filter(value==1) %>% 
-      dplyr::pull(count) *
-        (terra::res(rast_list_temp[["sc1"]]$is_roads_distant) %>% prod())
-  # roads sc2
-  area_m2_sc2_temp <- rast_list_temp[["sc2"]]$is_roads_distant %>% 
-      terra::mask(
-        rast_list_temp[["sc2"]]$is_roads_distant %>% 
-          terra::clamp(lower = 1, upper = 1, values = FALSE)
-      ) %>%
-      terra::mask(
-        wf_landscapes %>%
-          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-          terra::vect() %>%
-          terra::project(terra::crs(rast_list_temp[["sc2"]]$is_roads_distant))
-      ) %>% 
-      terra::freq() %>% 
-      dplyr::filter(value==1) %>% 
-      dplyr::pull(count) *
-        (terra::res(rast_list_temp[["sc2"]]$is_roads_distant) %>% prod())
+  # area_df
+  area_df1 <- rast_area_fn(sc_n = 1, layer_name = "is_roads_distant", row_n = row_n)
+  # area_df
+  area_df2 <- rast_area_fn(sc_n = 2, layer_name = "is_roads_distant", row_n = row_n)
   # plot forest and shrub cover
   plt <- plt_basemap +
     # scenario 1 roads
@@ -1136,14 +1133,26 @@ roads_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
       , subtitle = "<span><span style='color:#e56a5d;'><b>Roads >1,000ft</b></span> | <span style='color:#be3885;'><b>Roads >2,000ft</b></span></span>"
       , caption = paste0(
           "Roads >1,000ft: "
-          , scales::comma(area_m2_sc1_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , area_df1 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_acres_lab)
+          , " acres"
           , " ("
-          , scales::comma(area_m2_sc1_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , area_df1 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_ha_lab)
+          , " ha"
           , ")"
-          , " | Roads >2,000ft: "
-          , scales::comma(area_m2_sc2_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , "\nRoads >2,000ft: "
+          , area_df2 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_acres_lab)
+          , " acres"
           , " ("
-          , scales::comma(area_m2_sc2_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , area_df2 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_ha_lab)
+          , " ha"
           , ")"
         )
     ) +
@@ -1165,38 +1174,10 @@ roads_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 # scales::show_col(viridis::plasma(n = 30))
 # function to plot basemap + riparian
 riparian_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
-  # riparian sc1
-  area_m2_sc1_temp <- rast_list_temp[["sc1"]]$is_riparian_buffer %>% 
-      terra::mask(
-        rast_list_temp[["sc1"]]$is_riparian_buffer %>% 
-          terra::clamp(lower = 1, upper = 1, values = FALSE)
-      ) %>%
-      terra::mask(
-        wf_landscapes %>%
-          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-          terra::vect() %>%
-          terra::project(terra::crs(rast_list_temp[["sc1"]]$is_riparian_buffer))
-      ) %>% 
-      terra::freq() %>% 
-      dplyr::filter(value==1) %>% 
-      dplyr::pull(count) *
-        (terra::res(rast_list_temp[["sc1"]]$is_riparian_buffer) %>% prod())
-  # riparian sc3
-  area_m2_sc3_temp <- rast_list_temp[["sc3"]]$is_riparian_buffer %>% 
-      terra::mask(
-        rast_list_temp[["sc3"]]$is_riparian_buffer %>% 
-          terra::clamp(lower = 1, upper = 1, values = FALSE)
-      ) %>%
-      terra::mask(
-        wf_landscapes %>%
-          dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-          terra::vect() %>%
-          terra::project(terra::crs(rast_list_temp[["sc3"]]$is_riparian_buffer))
-      ) %>% 
-      terra::freq() %>% 
-      dplyr::filter(value==1) %>% 
-      dplyr::pull(count) *
-        (terra::res(rast_list_temp[["sc3"]]$is_riparian_buffer) %>% prod())
+  # area_df
+  area_df1 <- rast_area_fn(sc_n = 1, layer_name = "is_riparian_buffer", row_n = row_n)
+  # area_df
+  area_df3 <- rast_area_fn(sc_n = 3, layer_name = "is_riparian_buffer", row_n = row_n)
   # plot forest and shrub cover
   plt <- plt_basemap +
     # scenario 1 riparian
@@ -1242,14 +1223,26 @@ riparian_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
       , subtitle = "<span><span style='color:#a01a9c;'><b>Riparian Buffer 100ft</b></span> | <span style='color:#6e00a8;'><b>Riparian Buffer 50ft</b></span></span>"
       , caption = paste0(
           "Riparian Buffer 100ft: "
-          , scales::comma(area_m2_sc1_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , area_df1 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_acres_lab)
+          , " acres"
           , " ("
-          , scales::comma(area_m2_sc1_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , area_df1 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_ha_lab)
+          , " ha"
           , ")"
-          , " | Riparian Buffer 50ft: "
-          , scales::comma(area_m2_sc3_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          , "\nRiparian Buffer 50ft: "
+          , area_df3 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_acres_lab)
+          , " acres"
           , " ("
-          , scales::comma(area_m2_sc3_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , area_df3 %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_ha_lab)
+          , " ha"
           , ")"
         )
     ) +
@@ -1280,22 +1273,8 @@ riparian_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 ```{r administrative-map-fn}
 # function to plot basemap + administrative
 administrative_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
-  # area for caption
-  area_m2_temp <- rast_list_temp[["sc1"]]$is_administrative %>% 
-    terra::mask(
-      rast_list_temp[["sc1"]]$is_administrative %>% 
-        terra::clamp(lower = 1, upper = 1, values = FALSE)
-    ) %>%
-    terra::mask(
-      wf_landscapes %>%
-        dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-        terra::vect() %>%
-        terra::project(terra::crs(rast_list_temp[["sc1"]]$is_administrative))
-    ) %>% 
-    terra::freq() %>% 
-    dplyr::filter(value==1) %>% 
-    dplyr::pull(count) *
-      (terra::res(rast_list_temp[["sc1"]]$is_administrative) %>% prod())
+  # area_df
+  area_df <- rast_area_fn(sc_n = 1, layer_name = "is_administrative", row_n = row_n)
   # plot forest and shrub cover
   plt <- plt_basemap +
     geom_tile(
@@ -1326,10 +1305,16 @@ administrative_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
       title = "Administratively Designated Areas"
       , subtitle = "<span><span style='color:#47039F;'><b>Administrative Designation</b></span>"
       , caption = paste0(
-          "Administratively Designated Areas: "
-          , scales::comma(area_m2_temp/4046.85642, suffix = "k", scale = 1e-3, accuracy = 1), " acres"
+          "Administratively Designated: "
+          , area_df %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_acres_lab)
+          , " acres"
           , " ("
-          , scales::comma(area_m2_temp/10000, suffix = "k", scale = 1e-3, accuracy = 1), " ha"
+          , area_df %>% 
+            dplyr::filter(value == 1) %>% 
+            dplyr::pull(area_ha_lab)
+          , " ha"
           , ")"
         )
     ) +
@@ -1350,23 +1335,7 @@ administrative_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 ```{r treatable-map-fn}
 # function to plot basemap + treatable
 treatable_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
-  # area for caption
-  # area_m2_temp <- rast_list_temp[["sc1"]]$is_treatable %>% 
-  #   terra::mask(
-  #     rast_list_temp[["sc1"]]$is_treatable %>% 
-  #       terra::clamp(lower = 1, upper = 1, values = FALSE)
-  #   ) %>%
-  #   terra::mask(
-  #     wf_landscapes %>%
-  #       dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-  #       terra::vect() %>%
-  #       terra::project(terra::crs(rast_list_temp[["sc1"]]$is_treatable))
-  #   ) %>% 
-  #   terra::freq() %>% 
-  #   dplyr::filter(value==1) %>% 
-  #   dplyr::pull(count) *
-  #     (terra::res(rast_list_temp[["sc1"]]$is_treatable) %>% prod())
-  # plot forest and shrub cover
+  # plot available/constrained
   plt <- plt_basemap +
     geom_tile(
       data = 1:length(rast_list_temp) %>% 
@@ -1382,26 +1351,6 @@ treatable_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
       , alpha = 0.7
       , inherit.aes = F
     ) +
-    # geom_sf(
-    #   data = fireshed_proj_area %>% 
-    #     dplyr::select(pa_id, geometry) %>% 
-    #     dplyr::mutate(pa_id=as.character(pa_id)) %>% 
-    #     dplyr::inner_join(
-    #       constrained_by_scnro_ls_pa %>% 
-    #         dplyr::filter(
-    #           area_name == area_nm_list[4]
-    #           & pct_pa_intrsct>=0.25
-    #         ) %>% 
-    #         dplyr::select(pa_id)
-    #       , by = dplyr::join_by("pa_id")
-    #       , multiple = "first"
-    #     ) %>% 
-    #     sf::st_transform(crs=plt_crs)
-    #   , fill = NA
-    #   , color = "gray77"
-    #   , lwd = 0.8
-    #   , inherit.aes = F
-    # ) + 
     geom_sf(
       data = wf_landscapes %>% 
         dplyr::filter(
@@ -1412,7 +1361,30 @@ treatable_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
       , color = "black"
       , lwd = 0.6
       , inherit.aes = F
-    ) + 
+    ) +
+    geom_text(
+      data = constrained_by_scnro_ls %>% 
+        dplyr::filter(area_name==area_nm_list[row_n]) %>% 
+        dplyr::mutate(area_pct_lab = scales::percent(pct_rmn5_administrative, accuracy=1))
+      , mapping = aes(
+        label = paste0(
+            "Mechanically available: "
+            , area_pct_lab
+            # , " ("
+            # , area_acres_lab
+            # , " acres; "
+            # , area_ha_lab
+            # , " ha"
+            # , ")"
+          )
+        , x = ggplot2::layer_scales(plt_basemap)$x$range$range[1]
+        , y = ggplot2::layer_scales(plt_basemap)$y$range$range[1]
+        , hjust = 0
+        , vjust = 1.1
+      )
+      , inherit.aes = F
+      , size = 4
+    ) +
     facet_grid(
       cols = vars(scenario_lab)
       , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
@@ -1420,10 +1392,10 @@ treatable_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
     ) +
     scale_fill_manual(values = c("#7A0403","#466BE3"), na.value = "transparent") +
     labs(
-      title = "Mechanical Treatment Operability"
+      title = "Mechanical Operability"
       , subtitle = "<span><span style='color:#466BE3;'><b>Available</b></span> | <span style='color:#7A0403;'><b>Constrained</b></span></span>"
     ) +
-    coord_sf(expand = F) +
+    coord_sf(expand = F, clip = "off") +
     theme(
       legend.position = "none"
       , plot.subtitle = ggtext::element_markdown(size = 10)
@@ -1433,20 +1405,192 @@ treatable_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-treatable_map_fn(row_n = 4, rast_agg_fact = 5)
-######## export image
-ggplot2::ggsave(
-    filename = paste0("../data/xxx_istreatable.png")
-    , plot = ggplot2::last_plot()
-    , width = 11
-    , height = 8.5
-    , units = "in"
-    , dpi = "print"
-    , bg = "white"
+# treatable_map_fn(row_n = 4, rast_agg_fact = 7)
+# ######## export image
+# ggplot2::ggsave(
+#     filename = paste0("../data/xxx_istreatable.png")
+#     , plot = ggplot2::last_plot()
+#     , width = 11
+#     , height = 8.5
+#     , units = "in"
+#     , dpi = "print"
+#     , bg = "white"
+#   )
+```
+
+Reduction in treatable area table
+
+```{r reduction-table-fn}
+reduction_table_fn <- function(row_n = 1) {
+  table_temp <- 
+    constrained_by_scnro_ls %>% 
+      dplyr::filter(area_name == area_nm_list[row_n]) %>%
+      dplyr::mutate(
+        dplyr::across(
+          tidyselect::ends_with("_ha")
+          , ~ scales::comma(.x, suffix = "k", scale = 1e-3, accuracy = 1)
+        )
+        , dplyr::across(
+          tidyselect::starts_with("pct_")
+          , ~ scales::percent(.x, accuracy = .1)
+        )
+      ) %>% 
+      dplyr::select(
+        # area_name
+        scenario_lab
+        , covertype_area_ha
+        , pct_covertype_area
+        , pct_rdctn1_protected
+        , pct_rdctn2_slope
+        , pct_rdctn3_roads
+        , pct_rdctn4_riparian
+        , pct_rdctn5_administrative
+        , rmn5_administrative_area_ha
+        , pct_rmn5_administrative
+      ) %>% 
+      dplyr::arrange(desc(scenario_lab)) %>% 
+      dplyr::rename(
+        "Scenario\n " = scenario_lab
+        , "Forest+Shrub\n(ha)" = covertype_area_ha
+        , "Forest+Shrub\n(%)" = pct_covertype_area
+        , "Protected\n " = pct_rdctn1_protected
+        , "Slope\nSteepness" = pct_rdctn2_slope
+        , "Road\nDistance" = pct_rdctn3_roads
+        , "Riparian\nBuffer" = pct_rdctn4_riparian
+        , "Administrative\n " = pct_rdctn5_administrative
+        , "Mechanically\nAvailable (ha)" = rmn5_administrative_area_ha
+        , "Mechanically\nAvailable (%)" = pct_rmn5_administrative
+      )
+  # table theme
+  ttheme_temp <- ggpubr::ttheme(
+    base_style = "light"
+    , colnames.style = colnames_style(
+      size = 9
+      , face = "bold"
+      , fill = "white"
+      , linewidth = 0
+      , linecolor = "transparent"
+    )
+    , tbody.style = tbody_style(
+      size = 8
+      , fill = c("white", "gray96")
+      , linewidth = 0
+      , linecolor = "transparent"
+    )
   )
+  # plot table
+  plt <- ggtexttable(table_temp, rows = NULL, theme = ttheme_temp)
+  return(plt)
+}
 ```
 
 
+## Landscape Mapping
+
+```{r landscape-map}
+xxx <- 4
+# set basemap
+plt_basemap <- landscape_basemap_fn(row_n = xxx)
+# load raster data
+rast_list_temp <- raster_data_read_fn(row_n = xxx)
+# get all the plots
+# ls()[grep("_fn",ls())]
+spatial_frmwrk_map_temp <- spatial_frmwrk_map_fn(row_n = xxx) + 
+  theme(
+    legend.position = "top"
+    , legend.direction = "vertical"
+    , plot.title = element_blank()
+  )
+landcover_map_temp <- landcover_map_fn(row_n = xxx, rast_agg_fact = 6) +
+  theme(plot.title = element_blank())
+protected_map_temp <- protected_map_fn(row_n = xxx, rast_agg_fact = 6) +
+  theme(plot.title = element_blank())
+slopes_map_temp <- slopes_map_fn(row_n = xxx, rast_agg_fact = 6) +
+  theme(plot.title = element_blank())
+roads_map_temp <- roads_map_fn(row_n = xxx, rast_agg_fact = 6) +
+  theme(plot.title = element_blank())
+riparian_map_temp <- riparian_map_fn(row_n = xxx, rast_agg_fact = 6) +
+  theme(plot.title = element_blank())
+administrative_map_temp <- administrative_map_fn(row_n = xxx, rast_agg_fact = 6) +
+  theme(plot.title = element_blank())
+treatable_map_temp <- treatable_map_fn(row_n = xxx, rast_agg_fact = 6) +
+  theme(plot.title = element_blank())
+reduction_table_temp <- reduction_table_fn(row_n = xxx)
+# plot for titler
+title_temp <-
+  ggplot() +
+    labs(
+      title = wf_landscapes %>% dplyr::filter(area_name==area_nm_list[xxx]) %>% dplyr::pull(name)
+      , subtitle = paste0(
+        wf_landscapes %>% dplyr::filter(area_name==area_nm_list[xxx]) %>% dplyr::pull(state)
+        , " ("
+        , wf_landscapes %>% dplyr::filter(area_name==area_nm_list[xxx]) %>% dplyr::pull(investment)
+        , " investment)"
+      )
+      # , caption = "none"
+    ) +
+    theme_void() +
+    theme(
+      panel.background = element_blank()
+      , plot.title = element_text(face = "bold", size = 44)
+      , plot.subtitle = element_text(size = 18)
+    )
+# plot title and spatial framework map
+plt_grd1 <-
+  cowplot::plot_grid(
+      # title / spatial framework
+      plotlist = list(
+        title_temp + theme(plot.margin = margin(0.1,0.3,0,0.1, "cm"))
+        , spatial_frmwrk_map_temp + theme(plot.margin = margin(0,0.3,0.1,0.1, "cm"))
+      )
+      , ncol = 1
+      , rel_heights = c(0.1,1)
+      , align = "v"
+    )
+# small maps
+plt_grd2 <- 
+  cowplot::plot_grid(
+    # small maps
+    plotlist = list(
+      landcover_map_temp
+      , protected_map_temp
+      , slopes_map_temp
+      , roads_map_temp
+      , riparian_map_temp
+      , administrative_map_temp
+    )
+    , ncol = 3
+    , nrow = 2
+    , align = "hv"
+  )
+# combine for page 1: maps
+page1 <- cowplot::plot_grid(
+    plotlist = list(plt_grd1, plt_grd2)
+    , ncol = 2
+    , nrow = 1
+    , rel_widths = c(0.6,1)
+    , align = "h"
+  ) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+# page 2 available/constrained
+# page2 <-
+  cowplot::plot_grid(
+      # title / spatial framework
+      plotlist = list(
+        title_temp + theme(plot.margin = margin(0.1,0.0,0.1,0.1, "cm"))
+        , reduction_table_temp
+      )
+      , nrow = 1
+      , rel_widths = c(0.3,1)
+      , align = "h"
+    )
+
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
 
 
 ```{r scenario-maps-fn, eval=T, include=T}
