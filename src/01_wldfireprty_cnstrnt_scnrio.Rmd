@@ -718,10 +718,10 @@ plt_basemap +
 # plot
 plt_fshed
 ggplot2::ggsave(
-    filename = paste0("../data/plt_map_ls_fshed.png")
+    filename = paste0("../data/plt_map_ls_fshed.jpeg")
     , plot = ggplot2::last_plot()
     , width = 8.5
-    , height = 7
+    , height = 8.5
     , units = "in"
     , dpi = "print"
     , bg = "white"
@@ -896,7 +896,7 @@ cowplot::ggdraw(plt_fshed_pa) +
     , height = 0.28
   )
 ggplot2::ggsave(
-    filename = paste0("../data/plt_ex_spatial1.png")
+    filename = paste0("../data/plt_ex_spatial1.jpeg")
     , plot = ggplot2::last_plot()
     , width = 11
     , height = 10
@@ -1002,7 +1002,7 @@ cowplot::plot_grid(
   theme(plot.background = element_rect(fill = "white", color = NA))
 # export
 ggplot2::ggsave(
-    filename = paste0("../data/plt_ex_spatial_strctr.png")
+    filename = paste0("../data/plt_ex_spatial_strctr.jpeg")
     , plot = ggplot2::last_plot()
     , width = 11
     , height = 5.8
@@ -1327,7 +1327,7 @@ ggplot(
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
   )
 ggplot2::ggsave(
-    filename = paste0("../data/plt_cnstrnt_rdctn_ls.png")
+    filename = paste0("../data/plt_cnstrnt_rdctn_ls.jpeg")
     , plot = ggplot2::last_plot()
     , width = 11
     , height = 8.5
@@ -1442,10 +1442,126 @@ ggplot(
   guides(fill = guide_legend(nrow = 1))
 # export
 ggplot2::ggsave(
-    filename = paste0("../data/plt_cnstrnt_avail.png")
+    filename = paste0("../data/plt_cnstrnt_avail.jpeg")
     , plot = ggplot2::last_plot()
     , width = 8.5
     , height = 11
+    , units = "in"
+    , dpi = "print"
+  )
+```
+
+```{r ls-rdctn-rmn-plt-wide, fig.height=10}
+# palette
+cols_cnstrnt_avail <- c("#7A0403","#466BE3")
+
+constrained_by_scnro_ls_long %>% 
+  dplyr::mutate(
+    constraint = forcats::fct_recode(constraint,"Available"="Total")
+    , pct_rdctn_hack = ifelse(constraint=="Available", 1+pct_rdctn, pct_rdctn)
+  ) %>% 
+  dplyr::mutate(
+    dplyr::across(
+      c(constraint)
+      , ~ forcats::fct_rev(.x)
+    )
+  ) %>% 
+  dplyr::mutate(
+    dplyr::across(
+      c(scenario_lab, area_name)
+      , ~ forcats::fct_rev(.x)
+    )
+  ) %>% 
+# plot
+ggplot(
+  mapping = aes(
+    y = area_name
+    , x = pct_rdctn_hack
+    , fill = constraint
+    , group = constraint
+  )
+) +
+  geom_col(
+    width = 0.7, alpha = 0.9
+  ) +
+  geom_vline(xintercept = 0, color = "black", linetype = "solid", linewidth = 1.1) +
+  geom_text(
+    mapping = aes(
+      label = scales::percent(
+        ifelse(pct_rdctn<0.145*-1 & constraint!="Available",pct_rdctn*-1,NA)
+        , accuracy = 1
+      )
+      , group = constraint
+      , fontface = "bold"
+    )
+    , position = position_stack(vjust = 0.5)
+    , color = "black", size = 2
+  ) +
+  geom_text(
+    mapping = aes(
+      label = scales::percent(
+        ifelse(constraint=="Available",pct_rdctn_hack,NA)
+        , accuracy = 1
+      )
+      , group = constraint
+      , fontface = "bold"
+    )
+    , color = "black", size = 3
+    , hjust = -0.1
+  ) +
+  annotate(
+    geom = "text"
+    , x = -0.72
+    , y = (constrained_by_scnro_ls_long %>% dplyr::pull(area_name) %>% unique() %>% length())*1.035
+    , label = "constrained"
+    , color = cols_cnstrnt_avail[1]
+    , fontface = "bold"
+    , size = 3
+  ) +
+  annotate(
+    geom = "text"
+    , x = 0.82
+    , y = (constrained_by_scnro_ls_long %>% dplyr::pull(area_name) %>% unique() %>% length())*1.035
+    , label = "available"
+    , color = cols_cnstrnt_avail[2]
+    , fontface = "bold"
+    , size = 3
+  ) +
+  scale_fill_manual(values = c(rev(plasma_custom), cols_cnstrnt_avail[2])) +
+  scale_x_continuous(
+    limits = c(-1.00,1.02)
+    , labels = scales::percent_format()
+  ) +
+  scale_y_discrete(expand = expansion(mult = c(0.02,0.05))) +
+  facet_grid(cols = vars(scenario_lab)) +
+  labs(
+    fill = ""
+    , x = "Percent of Forest & Shrub Area in Overall Landscape" 
+    , subtitle = "" 
+    , y = ""
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "top"
+    , legend.direction  = "horizontal"
+    , legend.title = element_text(size=7)
+    , axis.title.x = element_text(size=10, face = "bold")
+    , axis.title.y = element_blank()
+    , axis.text.x = element_blank()
+    , axis.text.y = element_text(color = "black",size=10, face = "bold")
+    , axis.ticks.x = element_blank()
+    , panel.grid.major = element_blank()
+    , panel.grid.minor = element_blank()
+    , strip.text = element_text(color = "black", face = "bold", size = 11)
+  ) +
+  guides(fill = guide_legend(nrow = 1))
+
+# export
+ggplot2::ggsave(
+    filename = paste0("../data/plt_cnstrnt_avail_wide.jpeg")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 6
     , units = "in"
     , dpi = "print"
   )
@@ -1530,7 +1646,7 @@ ggplot() +
   ) +
   geom_text(
     mapping = aes(x = pct, y = reorder(area_name, desc(area_name)), group=cnstrnt_class
-        ,label = scales::percent(ifelse(pct>=0.055,pct,NA), accuracy = 1)
+        ,label = scales::percent(ifelse(pct>=0.12,pct,NA), accuracy = 1)
         , fontface = "bold"
       )
     , position = position_stack(vjust = 0.5)
@@ -1556,19 +1672,23 @@ ggplot() +
   theme_light() +
   theme(
     legend.position = "top"
+    , legend.direction  = "horizontal"
     , legend.title = element_text(size=7)
-    , axis.text.x = element_text(size=7)
     , axis.title.x = element_text(size=10, face = "bold")
-    , strip.text = element_text(color = "black", face = "bold")
+    , axis.title.y = element_blank()
+    , axis.text.x = element_blank()
+    , axis.text.y = element_text(color = "black",size=10, face = "bold")
+    , axis.ticks.x = element_blank()
+    , strip.text = element_text(color = "black", face = "bold", size = 11)
   ) +
   guides(
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
   )
 ggplot2::ggsave(
-    filename = paste0("../data/plt_fpa_cnstrnt_dist.png")
+    filename = paste0("../data/plt_fpa_cnstrnt_dist.jpeg")
     , plot = ggplot2::last_plot()
-    , width = 11
-    , height = 8.5
+    , width = 8.5
+    , height = 11
     , units = "in"
     , dpi = "print"
   )
@@ -2104,6 +2224,11 @@ landscape_basemap_fn <- function(row_n=1) {
     , right = bb_temp[[3]]
     , left = bb_temp[[1]]
   )
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # stamen maps is being depreciated Oct 31, 2023
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   # get map
   hey_ggmap <- ggmap::get_stamenmap(
     bbox = bbox_temp
@@ -2111,6 +2236,7 @@ landscape_basemap_fn <- function(row_n=1) {
     , maptype = "terrain" #"toner-hybrid" # "terrain"
     , crop = T
   )
+
   # ggmap(hey_ggmap)
   # apply align function
     hey_ggmap_aligned <- ggmap_bbox_fn(hey_ggmap, plt_crs) # Use the function
@@ -2177,7 +2303,7 @@ scenario_cnstrnt_map_fn <- function(row_n = 1) {
   # return
   return(plt)
 }
-# scenario_cnstrnt_map_fn(row_n = 9)
+# scenario_cnstrnt_map_fn(row_n = 12)
 ```
 
 ```{r scenario-maps-print, eval=F, include=T}
@@ -2191,6 +2317,47 @@ plt_list[]
 # area_nm_list
 # scenario_cnstrnt_map_fn(18)
 ```
+
+```{r scenario-maps-sad-fn, eval=F, include=F}
+# STAMEN MAPS IS DEAD...TRANSITION TO google
+# https://console.cloud.google.com/apis/
+api_secret <- "" #### YOUR API KEY
+ggmap::register_google(key = api_secret, write = T)
+# area_nm_list
+# bounding box
+  bb_temp <- 
+    map_fs_temp %>% 
+    dplyr::filter(
+      area_name == area_nm_list[9]
+    ) %>% 
+    sf::st_union() %>% 
+    sf::st_transform(crs=5070) %>% 
+    sf::st_buffer(as.numeric(5000)) %>% 
+    sf::st_transform(crs=4326) %>% # same as get_map return
+    sf::st_bbox()
+  # set bbox for get call
+  bbox_temp <- c(
+    bottom = bb_temp[[2]]
+    , top = bb_temp[[4]]
+    , right = bb_temp[[3]]
+    , left = bb_temp[[1]]
+  )
+  # get map
+  hey_ggmap <- ggmap::get_map(
+    location = bbox_temp
+    , zoom = 8 # zoom_level
+    , scale = "auto"
+    , maptype = "satellite" #""terrain-background" # "terrain" # hybrid # satellite
+    , source = "google"
+    , crop = T
+  )
+ggmap::ggmap(hey_ggmap) + 
+    coord_sf(
+      expand = FALSE
+    )
+
+```
+
 
 
 ```{r, include=FALSE, eval=FALSE}
@@ -2332,7 +2499,8 @@ largest_patch_map_fn <- function(nrow = 1){
   # return
   return(plt)
 }
-# largest_patch_map_fn(20)
+# scenario_cnstrnt_map_fn(4)
+# largest_patch_map_fn(2)
 ```
 
 ```{r patch-plt-print}
@@ -2345,7 +2513,8 @@ plt_ptch_list[]
 1:length(plt_ptch_list) %>% 
   purrr::map(function(x){
       ggplot2::ggsave(
-          filename = paste0("../data/","plt_map_patch_fpa_",x,".png")
+          filename = paste0("../data/patch_maps/","plt_map_patches_fpa_",x,".jpeg")
+          # filename = paste0("../data/terrain/","plt_map_patches_fpa_",x,".jpeg")
           , plot = plt_ptch_list[[x]] # ggplot2::last_plot()
           , width = 11
           , height = 8.5
@@ -2354,6 +2523,166 @@ plt_ptch_list[]
           , bg = "white"
         )
     }
+  )
+```
+
+#### Example of how patches were done
+
+```{r}
+name_temp <- "WA: Central Washington Initiative"
+# plot project areas and landscape
+plt_patchex_stp1 <- ggplot() + 
+  geom_sf(
+    data = 
+      fireshed_proj_area %>% 
+        dplyr::mutate(pa_id=as.character(pa_id)) %>% 
+        dplyr::select(pa_id) %>% 
+        dplyr::inner_join(
+          constrained_by_scnro_ls_pa %>% 
+            dplyr::filter(
+              area_name == name_temp
+              & scenario_id == 2
+            )
+          , by = dplyr::join_by(pa_id)
+        )
+    , aes(fill = cnstrnt_class), lwd = 0.05
+    , inherit.aes = F
+    , alpha = 0.6
+  ) +
+  geom_sf(
+    data = wf_landscapes %>% 
+      dplyr::filter(
+          area_name == name_temp
+        ) 
+    , fill = NA, color = "black", lwd = 0.3
+  ) +
+  scale_fill_manual(values = cols_rdylbu_lt) +
+  labs(
+    fill = "Level of\nConstraint"
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none"
+    , legend.direction  = "horizontal"
+    , legend.title = element_text(size=7)
+    , legend.margin = margin(c(-10,0,0,0))
+    , plot.title = element_text(size = 11)
+    , strip.text = element_text(color = "black", face = "bold")
+    , axis.title = element_blank()
+    , axis.text = element_blank()
+    , axis.ticks = element_blank()
+    , panel.grid = element_blank()
+    , plot.margin = margin(0, 0, 0, 0, "cm")
+  ) +
+  guides(
+    fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
+  )
+# plt_patchex_stp1
+# plot patches and landscape
+plt_patchex_stp2 <-
+  ggplot() + 
+  geom_sf(
+      data = cnstrnt_class_patches %>%
+        dplyr::filter(
+          area_name == name_temp
+          & scenario_id == 2
+          # & patch_area_rank == 1
+          # & cnstrnt_class != "med. constraint"
+        )
+      , aes(fill = cnstrnt_class) #, color = cnstrnt_class)
+      # , lwd = 1.4
+      , alpha = 0.6
+    ) +
+  geom_sf(
+    data = wf_landscapes %>% 
+      dplyr::filter(
+          area_name == name_temp
+        ) 
+    , fill = NA, color = "black", lwd = 0.3
+  ) +
+  scale_fill_manual(values = cols_rdylbu_lt) +
+  scale_color_manual(values = cols_rdylbu_dk, drop = F) +
+  labs(
+    fill = "Level of\nConstraint"
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none"
+    , legend.direction  = "horizontal"
+    , legend.title = element_text(size=7)
+    , legend.margin = margin(c(-10,0,0,0))
+    , plot.title = element_text(size = 11)
+    , strip.text = element_text(color = "black", face = "bold")
+    , axis.title = element_blank()
+    , axis.text = element_blank()
+    , axis.ticks = element_blank()
+    , panel.grid = element_blank()
+    , plot.margin = margin(0, 0, 0, 0, "cm")
+  ) +
+  guides(
+    fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
+  )
+# plt_patchex_stp2
+# selected largest patch
+plt_patchex_stp3 <-
+  ggplot() + 
+  geom_sf(
+      data = cnstrnt_class_patches %>%
+        dplyr::filter(
+          area_name == name_temp
+          & scenario_id == 2
+          & patch_area_rank == 1
+          & cnstrnt_class != "med. constraint"
+        )
+      , aes(fill = cnstrnt_class, color = cnstrnt_class)
+      , lwd = 1.4
+      , alpha = 0.6
+    ) +
+  geom_sf(
+    data = wf_landscapes %>% 
+      dplyr::filter(
+          area_name == name_temp
+        ) 
+    , fill = NA, color = "black", lwd = 0.3
+  ) +
+  scale_fill_manual(values = cols_rdylbu_lt) +
+  scale_color_manual(values = cols_rdylbu_dk, drop = F) +
+  labs(
+    fill = "Level of\nConstraint"
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none"
+    , legend.direction  = "horizontal"
+    , legend.title = element_text(size=7)
+    , legend.margin = margin(c(-10,0,0,0))
+    , plot.title = element_text(size = 11)
+    , strip.text = element_text(color = "black", face = "bold")
+    , axis.title = element_blank()
+    , axis.text = element_blank()
+    , axis.ticks = element_blank()
+    , panel.grid = element_blank()
+    , plot.margin = margin(0, 0, 0, 0, "cm")
+  ) +
+  guides(
+    color = "none"
+    , fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
+  )
+# plt_patchex_stp3
+### combine
+cowplot::plot_grid(
+  plotlist = list(plt_patchex_stp1, plt_patchex_stp2, plt_patchex_stp3)
+  , cols = 3
+  , rows = 1
+  , align = "h"
+)
+ggplot2::ggsave(
+    filename = paste0("../data/plt_lrgst_patch_example_methods.jpeg")
+    , plot = ggplot2::last_plot()
+    , width = 11
+    , height = 7
+    , units = "in"
+    , dpi = "print"
   )
 ```
 
@@ -2625,7 +2954,7 @@ ggplot(
   )
 # export
 ggplot2::ggsave(
-    filename = paste0("../data/plt_lrgst_patch_index.png")
+    filename = paste0("../data/plt_lrgst_patch_index.jpeg")
     , plot = ggplot2::last_plot()
     , width = 8.5
     , height = 11
@@ -2821,7 +3150,7 @@ cowplot::plot_grid(
   theme(plot.background = element_rect(fill = "white", color = NA))
 # export
 ggplot2::ggsave(
-    filename = paste0("../data/plt_ex_patch_map_bars_combo.png")
+    filename = paste0("../data/plt_ex_patch_map_bars_combo.jpeg")
     , plot = ggplot2::last_plot()
     , width = 7.7
     , height = 7
@@ -3895,6 +4224,7 @@ plt <- ggplot(
     , axis.text.x = element_blank()
     , axis.ticks.x = element_blank()
     , axis.text = element_text(size = 8)
+    , axis.text.y = element_text(color = "black",size=9, face = "bold")
     , panel.grid.major.x = element_blank()
     , panel.grid.minor.x = element_blank()
     , strip.text = element_text(color = "black", face = "bold", size = 10)
@@ -3925,10 +4255,10 @@ cowplot::plot_grid(
 )
 # export
 ggplot2::ggsave(
-    filename = paste0("../data/plt_obj_sc.png")
+    filename = paste0("../data/plt_obj_sc.jpeg")
     , plot = ggplot2::last_plot()
-    , width = 11
-    , height = 8.5
+    , width = 8.5
+    , height = 11
     , units = "in"
     , dpi = "print"
   )
@@ -4254,7 +4584,7 @@ plt_fshed_cnstrnt_lvl_temp +
   ) 
 # export
 ggplot2::ggsave(
-    filename = paste0("../data/plt_prjareas_dist_sc.png")
+    filename = paste0("../data/plt_prjareas_dist_sc.jpeg")
     , plot = ggplot2::last_plot()
     , width = 11
     , height = 8.5
@@ -4319,7 +4649,7 @@ cowplot::ggdraw(
   )
 # export
 ggplot2::ggsave(
-    filename = paste0("../data/plt_prjareas_sc_map_inset.png")
+    filename = paste0("../data/plt_prjareas_sc_map_inset.jpeg")
     , plot = ggplot2::last_plot()
     , width = 11
     , height = 8.5
@@ -4433,19 +4763,24 @@ ggplot(
   ) +
   theme_light() +
   theme(
-    legend.position = "top" # c(0.9, 0.9)
-    , legend.title = element_text(size=9)
-    , axis.text.x = element_text(size=7)
+    legend.position = "top"
+    , legend.direction  = "horizontal"
+    , legend.title = element_text(size=7)
     , axis.title.x = element_text(size=10, face = "bold")
+    , axis.title.y = element_blank()
+    , axis.text.x = element_blank()
+    , axis.text.y = element_text(color = "black",size=10, face = "bold")
+    , axis.ticks.x = element_blank()
+    , strip.text = element_text(color = "black", face = "bold", size = 11)
   ) +
   guides(
     fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
   )
 ggplot2::ggsave(
-    filename = paste0("../data/plt_nlcd_area_ls.png")
+    filename = paste0("../data/plt_nlcd_area_ls.jpeg")
     , plot = ggplot2::last_plot()
-    , width = 11
-    , height = 8.5
+    , width = 8.5
+    , height = 11
     , units = "in"
     , dpi = "print"
   )
@@ -4473,11 +4808,17 @@ constrained_by_scnro_ls %>%
     dplyr::mutate(
       dplyr::across(
         tidyselect::contains("_ha_")
+        , ~ (.x*10000)/4046.85642
+        , .names = "{.col}_acres"
+      )
+    ) %>% 
+    dplyr::mutate(
+      dplyr::across(
+        tidyselect::contains("_ha_")
         , ~ scales::comma(.x, accuracy = 1)
       )
     ) %>% 
   # dplyr::select(area_name,tidyselect::ends_with("_ha")) %>% 
-  
   View()
 
 ####patches
@@ -4504,9 +4845,7 @@ cnstrnt_class_patches %>%
   dplyr::relocate(low_constraint, .after = high_constraint) %>% 
   dplyr::mutate(high_is_big = high_constraint>low_constraint) %>% 
   dplyr::arrange(
-    area_name
-    , desc(scenario_lab)
-    # , desc(high_constraint)
+    desc(scenario_lab)
     , desc(low_constraint)
   ) %>% 
   # dplyr::group_by(scenario_lab) %>% 
@@ -4527,7 +4866,7 @@ constrained_by_scnro_ls %>%
     , comp_13 = pct_rmn3-pct_rmn1
     , comp_23 = pct_rmn3-pct_rmn2
   ) %>% 
-  dplyr::arrange(comp_13) %>% 
+  dplyr::arrange(comp_23) %>% 
   View()
 ### back of napkin calcs for report
 # change in lightly constrained acreage across scenarios

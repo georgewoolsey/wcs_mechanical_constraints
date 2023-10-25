@@ -1,4 +1,17 @@
-# Scenario Analysis: WCS Priority Landscapes
+---
+title: ""
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: "rows"
+    theme: "readable"
+    fig_width: 11
+    fig_height: 8.5
+    fig_mobile: FALSE
+knit: (function(inputFile, encoding){ 
+    out_dir <- '../';
+    rmarkdown::render(inputFile, encoding = encoding, output_file=file.path(dirname(inputFile), out_dir, 'flexdashboard')) 
+  })
+---
 
 ```{r, include=FALSE, warning=F, message=F}
 # knit options
@@ -9,6 +22,7 @@ knitr::opts_chunk$set(
   , results='hide'
   , fig.width = 10
   , fig.height = 8
+  , include = F # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!INCLUDE OFF SO NOT PRINTED WITH FLEXDASHBOARD
 )
 # bread-and-butter
 library(tidyverse)
@@ -40,200 +54,10 @@ set.seed(11)
 sf::sf_use_s2(FALSE)
 ```
 
-See the USFS [Wildfire Crisis Strategy]((https://www.fs.usda.gov/managing-land/wildfire-crisis)) (WCS) document for background information.
-
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls())
 gc()
 ```
-
-## Analysis Scenarios
-
-```{r scenarios-plt}
-# table theme
-  ttheme_temp <- ggpubr::ttheme(
-    base_style = "light"
-    , colnames.style = colnames_style(
-      size = 11
-      , face = "bold"
-      , fill = "white"
-      , linewidth = 0
-      , linecolor = "transparent"
-    )
-    , tbody.style = tbody_style(
-      size = 10
-      , fill = c("white", "gray96")
-      , linewidth = 0
-      , linecolor = "transparent"
-    )
-  )
-  # Text plot
-    text_temp <- paste(
-          "Hierarchy of constraints used to determine whether mechanical"
-          , "equipment was allowed and operationally feasible for this"
-          , "analysis, where spatial analysis was overlaid from L1"
-          , "through L5 to attribute the cause of constraint."
-      , sep = " ")
-    text_plt_temp <- ggpubr::ggparagraph(
-      text = text_temp
-      , face = "italic"
-      , size = 12
-    )
-  # Arrange the plots on the same page
-  
-
-# mechanical mgmt allowed if:
-n_sc_temp <- 3
-plt_scenario_table_temp <-
-  data.frame(
-    scenario = 1:n_sc_temp
-    , cover = rep("Forest or Shrubland",n_sc_temp)
-    , protected = rep("Not Protected",n_sc_temp)
-    , slope = c("<40%","<60%","<60%")
-    , road = c("<1,000ft","<2,000ft","<2,000ft")
-    , riparian = c(">100ft",">100ft",">50ft")
-    , admin = c("No Designation","No Designation","Any Designation")
-  ) %>% 
-    tidyr::pivot_longer(
-      cols = -c(scenario)
-    ) %>% 
-    tidyr::pivot_wider(
-      names_from = scenario
-      , values_from = value
-      , names_prefix = "scenario_"
-    ) %>% 
-    dplyr::mutate(
-      name = factor(
-        name
-        , levels = c(
-          "cover"
-          , "protected"
-          , "slope"
-          , "road"
-          , "riparian"
-          , "admin"
-        )
-        , labels = c(
-          "NLCD Cover Type"
-          , "Protected or\nIRA Status"
-          , "Slope"
-          , "Distance to\nNearest Road"
-          , "Riparian\nBuffer"
-          , "Administrative\nDesignation"
-        )
-        , ordered = T
-      )
-    ) %>% 
-    dplyr::arrange(name) %>% 
-    dplyr::mutate(
-      lvl = paste0("L",dplyr::row_number()-1,":")
-    ) %>% 
-    dplyr::relocate(lvl) %>% 
-    dplyr::rename(
-          " " = 1
-          , "Constraint\ntype" = 2
-          , "Scenario 1\nmost constrained" = 3
-          , "Scenario 2\n " = 4
-          , "Scenario 3\nleast constrained" = 5
-        ) %>% 
-    ggpubr::ggtexttable(rows = NULL, theme = ttheme_temp)
-    
-# plot table
-  plt_scenario_table <- ggpubr::ggarrange(
-      plt_scenario_table_temp
-      , text_plt_temp
-    
-    , ncol = 1
-    , nrow = 2
-    , heights = c(1, 0.25)
-  )  
-  plt_scenario_table
-```
-
-## Fireshed Project Area Classifications
-
-```{r class-plt}
-# table theme
-  ttheme_temp <- ggpubr::ttheme(
-    base_style = "light"
-    , colnames.style = colnames_style(
-      size = 9
-      , face = "bold"
-      , fill = "white"
-      , linewidth = 0
-      , linecolor = "transparent"
-    )
-    , tbody.style = tbody_style(
-      size = 9
-      , fill = c("white", "gray96")
-      , linewidth = 0
-      , linecolor = "transparent"
-    )
-  )
-  # Text plot
-    text_temp <- paste(
-        "Fireshed project areas of approximately 10,000 hectares (25,000 acres)"
-        , "in size represent the geographic unit at which vegetation and fuel"
-        , "management projects are planned. Fireshed project areas"
-        , "were divided into three classes of"
-        , "mechanical constraint: high, medium, and low."
-      , sep = " ")
-    text_plt_temp <- ggpubr::ggparagraph(
-      text = text_temp
-      , face = "italic"
-      , size = 9
-    )
-  # Arrange the plots on the same page
-  
-
-# mechanical mgmt allowed if:
-plt_scenario_table_temp <-
-  data.frame(
-    lvl = c("High constraint", "Medium constraint", "Low constraint")
-    , constrained = c("81–100%", "60–80%", "0–59%")
-    , available = c("0–19%", "20–40%","41–100%")
-    
-  ) %>% 
-    dplyr::rename(
-          "Level of\nconstraint" = 1
-          , "Mechanically\nconstrained area" = 2
-          , "Mechanically\navailable area" = 3
-        ) %>% 
-    ggpubr::ggtexttable(rows = NULL, theme = ttheme_temp)
-    
-# plot table
-  # plt_cnstrnt_class_table <- ggpubr::ggarrange(
-  #     plt_scenario_table_temp + 
-  #        theme(plot.margin = margin(0,0,0,0,"cm"))
-  #     , NULL
-  #     , text_plt_temp
-  #   , ncol = 1
-  #   , nrow = 3
-  #   , heights = c(1,0.01, 0.35)
-  # )
-
-  plt_cnstrnt_class_table <- cowplot::plot_grid(
-      plt_scenario_table_temp + 
-         theme(plot.margin = margin(0,0,0,0,"cm"))
-      , NULL
-      , text_plt_temp + 
-         theme(plot.margin = margin(0,0,0,0,"cm"))
-    , ncol = 1
-    , nrow = 3
-    , rel_heights = c(1,0.05, 0.7)
-    , align = "v"
-    , axis = "lr"
-  )  
-  plt_cnstrnt_class_table + theme(plot.margin = margin(0,0,0,0,"cm"))
-```
-
-
-
-## Data Preparation
-
-### Load WCS landscapes
-
-WCS priority landscape spatial data from the  [USFS Geospatial Data Discovery](https://data-usfs.hub.arcgis.com/datasets/wildfire-crisis-strategy-landscapes-feature-layer/explore) site (accessed 2023-04-04).
 
 ```{r wcs-ls-dta, results='hide'}
 # load data
@@ -272,10 +96,6 @@ wf_landscapes <- sf::read_sf("../data/Wildfire_Crisis_Strategy_Landscapes/Wildfi
 # view
   wf_landscapes %>% dplyr::glimpse()
 ```
-
-### Load landscape-level constraint data
-
-Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was created via this [Google Earth Engine script](https://code.earthengine.google.com/692417f7747e247fc0545824135a0355?noload=true).
 
 ```{r ls-cnstrnt-dta, results='hide'}
 # load landscape constraint scenario data
@@ -348,12 +168,6 @@ constrained_by_scnro_ls <-
 remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
-
-### Load fireshed project area data
-
-The fireshed registry spatial data was obtained from the USFS Geospatial Data Discovery tool for [firesheds](https://data-usfs.hub.arcgis.com/datasets/fireshed-registry-fireshed-feature-layer/explore) and [project areas](https://data-usfs.hub.arcgis.com/datasets/fireshed-registry-project-area-feature-layer/explore) (accessed 2023-05-03).
-
-See [this section](#fsheds) for exploration of fireshed and project area spatial data
 
 ```{r fshed-spatial}
 ### fireshed spatial data
@@ -520,7 +334,6 @@ fireshed_proj_area <- sf::st_read("../data/firesheds/Fireshed_Registry3A_Project
       )
 ```
 
-Fireshed project area constraint analysis data (i.e., row unique by WCS landscape + f.p.a.) was created via this [Google Earth Engine script](https://code.earthengine.google.com/003e3994cfc4c469d52d224225a4b109?noload=true)
 
 ```{r fs-ld-dta}
 # load fireshed constraint scenario data
@@ -621,10 +434,6 @@ constrained_by_scnro_ls_pa <-
 remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
-
-## Functions: Landscape Mapping 
-
-### Define Basemap
 
 ```{r stamen-basemap-fn}
 #########################################################################
@@ -773,7 +582,7 @@ landscape_basemap_fn <- function(row_n=1) {
   hey_ggmap <- ggmap::get_stamenmap(
     bbox = bbox_temp
     , zoom = zoom_level
-    , maptype = "toner-hybrid" #"toner-hybrid" # "terrain"
+    , maptype = "terrain" #"toner-hybrid" # "terrain"
     , crop = T
   )
   # ggmap(hey_ggmap)
@@ -815,15 +624,12 @@ landscape_basemap_fn <- function(row_n=1) {
   # return
   return(plt)
 }
-# 1:length(area_nm_list) %>% purrr::map(landscape_basemap_fn)
 # landscape_basemap_fn(row_n = 2)
 ###### set plot basemap in global function
 # uncomment for testing
 plt_basemap <- NULL
 # plt_basemap <- landscape_basemap_fn(row_n = 4)
 ```
-
-### Plot of Nested Fireshed Spatial Framework
 
 ```{r spatial-frmwrk-map-fn}
 # function to plot basemap + spatial framework
@@ -859,7 +665,7 @@ spatial_frmwrk_map_fn <- function(row_n = 1) {
         sf::st_transform(crs=plt_crs)
       , aes(fill = fireshed_crisis_strategy, color = "Project Area\nboundary")
       , alpha = 0.8
-      , lwd = 0.8
+      , lwd = 1.3
       , inherit.aes = F
     ) +
     geom_sf(
@@ -873,7 +679,7 @@ spatial_frmwrk_map_fn <- function(row_n = 1) {
         sf::st_transform(crs=plt_crs)
       , aes(color = "Fireshed\nboundary")
       , fill = NA
-      , lwd = 0.7
+      , lwd = 1.2
       , linetype = "dashed"
       , inherit.aes = F
     ) +
@@ -892,11 +698,11 @@ spatial_frmwrk_map_fn <- function(row_n = 1) {
     scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
     scale_color_manual(values = c("gray44","skyblue2", "black")) +
     labs(
-      fill = "Fireshed\nhigh-risk status"
+      fill = "Fireshed\nHigh-Risk Status"
       , color = "Spatial\nFramework"
-      , title = "Spatial framework and risk"
+      , title = "Spatial Framework and Risk"
       , caption = paste0(
-        "High-Risk Fireshed Project Areas:\n"
+        "High-Risk Fireshed Project Areas: "
         , sum_dta_temp$total_area_acres[1], " acres"
         , " ("
         , sum_dta_temp$total_area_ha[1], " ha"
@@ -911,12 +717,8 @@ spatial_frmwrk_map_fn <- function(row_n = 1) {
   # return
   return(plt)
 }
-# spatial_frmwrk_map_fn(row_n = 2)
+# spatial_frmwrk_map_fn(row_n = 4)
 ```
-
-### Read Raster Data Function
-
-This raster data was created via this [Google Earth Engine script](https://code.earthengine.google.com/692417f7747e247fc0545824135a0355?noload=true).
 
 ```{r raster-data-read-fn}
 # function to read raster data
@@ -946,8 +748,6 @@ raster_data_read_fn <- function(row_n = 1) {
 rast_list_temp <- NULL
 # rast_list_temp <- raster_data_read_fn(row_n = 4)
 ```
-
-Define function to select, aggregate, filter, and create data frame from raster
 
 ```{r rast2df-fn}
 # define function to select, aggregate, filter, and df from raster
@@ -999,8 +799,6 @@ rast2df_fn <- function(sc_n = 1, layer_name = "is_treatable", row_n = 1, rast_ag
 }
 ```
 
-Define function to select raster and aggregate area
-
 ```{r rast-area-fn}
 rast_area_fn <- function(sc_n = 1, layer_name = "is_treatable", row_n = 1){
   # find index of layer name
@@ -1043,8 +841,6 @@ rast_area_fn <- function(sc_n = 1, layer_name = "is_treatable", row_n = 1){
 }
 # rast_area_fn(row_n = 4, layer_name = "is_protected")
 ```
-
-### Forest and Shrub Land Cover
 
 ```{r landcover-map-fn}
 # function to plot basemap + forest&shrub
@@ -1108,7 +904,6 @@ landcover_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 # landcover_map_fn(row_n = 4, rast_agg_fact = 5)
 ```
 
-### Protected Area
 
 ```{r protected-map-fn}
 # function to plot basemap + protected
@@ -1167,10 +962,9 @@ protected_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
   # return
   return(plt)
 }
-# protected_map_fn(row_n = 5, rast_agg_fact = 6)
+# protected_map_fn(row_n = 4, rast_agg_fact = 6)
 ```
 
-### Steep Slopes
 
 ```{r slopes-map-fn}
 # scales::show_col(viridis::plasma(n = 30))
@@ -1222,8 +1016,7 @@ slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
     scale_fill_manual(values = c("#febe2a","#f58c46"), na.value = "transparent") +
     labs(
       title = "Steep Slopes"
-      # , subtitle = "<span><span style='color:#febe2a;'><b>Slopes >40%</b></span> | <span style='color:#f58c46;'><b>Slopes >60%</b></span></span>"
-      , subtitle = "<b>Slopes</b><span><span style='color:#febe2a;'><b> >40%</b></span> | <span style='color:#f58c46;'><b>>60%</b></span></span>"
+      , subtitle = "<span><span style='color:#febe2a;'><b>Slopes >40%</b></span> | <span style='color:#f58c46;'><b>Slopes >60%</b></span></span>"
       , caption = paste0(
           "Slopes >40%: "
           , area_df1 %>% 
@@ -1262,7 +1055,6 @@ slopes_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 # slopes_map_fn(row_n = 4, rast_agg_fact = 6)
 ```
 
-### Roads Distant
 
 ```{r roads-map-fn}
 # scales::show_col(viridis::plasma(n = 30))
@@ -1314,8 +1106,7 @@ roads_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
     scale_fill_manual(values = c("#e56a5d","#be3885"), na.value = "transparent") +
     labs(
       title = "Roads Distant"
-      # , subtitle = "<span><span style='color:#e56a5d;'><b>Roads >1,000ft</b></span> | <span style='color:#be3885;'><b>Roads >2,000ft</b></span></span>"
-      , subtitle = "<b>Roads</b><span><span style='color:#e56a5d;'><b> >1,000ft</b></span> | <span style='color:#be3885;'><b>>2,000ft</b></span></span>"
+      , subtitle = "<span><span style='color:#e56a5d;'><b>Roads >1,000ft</b></span> | <span style='color:#be3885;'><b>Roads >2,000ft</b></span></span>"
       , caption = paste0(
           "Roads >1,000ft: "
           , area_df1 %>% 
@@ -1352,8 +1143,6 @@ roads_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 }
 # roads_map_fn(row_n = 4, rast_agg_fact = 6)
 ```
-
-### Riparian Buffer
 
 ```{r riparian-map-fn}
 # scales::show_col(viridis::plasma(n = 30))
@@ -1405,7 +1194,7 @@ riparian_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
     scale_fill_manual(values = c("#a01a9c","#6e00a8"), na.value = "transparent") +
     labs(
       title = "Riparian Buffer"
-      , subtitle = "<b>Riparian Buffer </b><span><span style='color:#a01a9c;'><b>100ft</b></span> | <span style='color:#6e00a8;'><b>50ft</b></span></span>"
+      , subtitle = "<span><span style='color:#a01a9c;'><b>Riparian Buffer 100ft</b></span> | <span style='color:#6e00a8;'><b>Riparian Buffer 50ft</b></span></span>"
       , caption = paste0(
           "Riparian Buffer 100ft: "
           , area_df1 %>% 
@@ -1453,7 +1242,6 @@ riparian_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 #   )
 ```
 
-### Administrative Designation
 
 ```{r administrative-map-fn}
 # function to plot basemap + administrative
@@ -1490,7 +1278,7 @@ administrative_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
       title = "Administratively Designated Areas"
       , subtitle = "<span><span style='color:#47039F;'><b>Administrative Designation</b></span>"
       , caption = paste0(
-          "Administrative: "
+          "Administratively Designated: "
           , area_df %>% 
             dplyr::filter(value == 1) %>% 
             dplyr::pull(area_acres_lab)
@@ -1515,7 +1303,6 @@ administrative_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 # administrative_map_fn(row_n = 4, rast_agg_fact = 6)
 ```
 
-### Overall Mechanically Constrained/Available
 
 ```{r treatable-map-fn}
 # function to plot basemap + treatable
@@ -1568,7 +1355,7 @@ treatable_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
         , vjust = 1.1
       )
       , inherit.aes = F
-      , size = 3
+      , size = 4
     ) +
     facet_grid(
       cols = vars(scenario_lab)
@@ -1603,7 +1390,6 @@ treatable_map_fn <- function(row_n = 1, rast_agg_fact = 2) {
 #   )
 ```
 
-### Reduction in treatable area table
 
 ```{r reduction-table-fn}
 reduction_table_fn <- function(row_n = 1) {
@@ -1657,63 +1443,32 @@ reduction_table_fn <- function(row_n = 1) {
       , linecolor = "transparent"
     )
     , tbody.style = tbody_style(
-      size = 9
+      size = 8
       , fill = c("white", "gray96")
       , linewidth = 0
       , linecolor = "transparent"
     )
   )
-  # Text plot
-    text <- paste(
-          "Combined forest and shrubland area within the landscape boundaries"
-          , "and the percent reduction of different types of constraints"
-          , "on mechanical treatment based on three scenarios of"
-          , "operational constraints using current standards."
-          , "At each level of constraint, the reduction in area and percentage"
-          , "was calculated based on the area remaining after considering"
-          , "the cumulative impact of prior constraints."
-      , sep = " ")
-    text_plt <- ggpubr::ggparagraph(
-      text = text
-      , face = "italic"
-      , size = 9
-    )
-  # Arrange the plots on the same page
-  
   # plot table
-  plt <- ggpubr::ggarrange(
-    
-      ggpubr::ggtexttable(table_temp, rows = NULL, theme = ttheme_temp)
-      , text_plt
-    
-    , ncol = 1
-    , nrow = 2
-    , heights = c(1, 0.25)
-  )
-    
-    # %>% # ggpubr::tab_add_footnote(
-    #     text = paste0(
-    #       "Combined forest and shrubland area within the landscape boundaries"
-    #       , " and the percent reduction of different types of constraints"
-    #       , "        "
-    #       , "\non mechanical treatment based on the three scenarios of "
-    #       , " operational constraints considered in this analysis."
-    #       , "                                         "
-    #     )
-    #     , size = 9
-    #     , just = "right"
-    #     , padding = unit(0.7, "line")
-    #     , hjust = 1.08
-    #   )
-  
-  
-  
+  plt <- ggpubr::ggtexttable(table_temp, rows = NULL, theme = ttheme_temp) %>% 
+    ggpubr::tab_add_footnote(
+        text = paste0(
+          "Combined forest and shrubland area within the landscape boundaries"
+          , " and the percent reduction of different types of constraints"
+          , "        "
+          , "\non mechanical treatment based on the three scenarios of "
+          , " operational constraints considered in this analysis."
+          , "                                         "
+        )
+        , size = 9
+        , just = "right"
+        , padding = unit(0.7, "line")
+        , hjust = 1.08
+      )
   return(plt)
 }
-# reduction_table_fn(1)
 ```
 
-### Title plot
 
 ```{r}
 # plot for titler
@@ -1738,7 +1493,7 @@ title_plot_fn <- function(row_n = 1) {
     theme_void() +
     theme(
       panel.background = element_blank()
-      , plot.title = element_text(face = "bold", size = 28)
+      , plot.title = element_text(face = "bold", size = 44)
       , plot.subtitle = element_text(size = 18)
     )
   # return
@@ -1747,797 +1502,79 @@ title_plot_fn <- function(row_n = 1) {
 # title_plot_fn(4)
 ```
 
-### Patch Data
 
-```{r patch-dta}
-# create spatial data of interconnected patches by constraint class
-# this is to represent the spatial aggregation of fireshed project areas of similar levels of  mechanical constraint
-  # aggregation = Tendency of patch or land-cover types to be spatially adjacent or in close proximity
-cnstrnt_class_patches <-
-  fireshed_proj_area %>% 
-      dplyr::mutate(pa_id=as.character(pa_id)) %>% 
-      dplyr::inner_join(
-        constrained_by_scnro_ls_pa %>% 
-          dplyr::filter(
-           pct_pa_intrsct>=0.25
-          ) %>% 
-          dplyr::select(pa_id, area_name, scenario_id, scenario_lab, cnstrnt_class)
-        , by = dplyr::join_by(pa_id)
-        , multiple = "all"
-      ) %>% 
-  # union vectors/polygons by constraint class into one multipolygon
-    # this dissolves inner boundaries by constraint class
-  dplyr::group_by(area_name, scenario_id, scenario_lab, cnstrnt_class) %>% 
-  dplyr::summarize(
-    geometry = sf::st_union(geometry, by_feature = F)
-  ) %>% 
-  # separate a multipolygon geometry into several polygons objects after performing a st_union()
-  sf::st_cast(to = "MULTIPOLYGON") %>%
-  st_cast(to = "POLYGON") %>% 
-  # calculate patch area 
-  dplyr::ungroup() %>% 
-  dplyr::group_by(area_name, scenario_id, scenario_lab, cnstrnt_class) %>% 
-  dplyr::mutate(
-    patch_area_ha = as.numeric(sf::st_area(geometry))/10000
-    , patch_area_rank = dplyr::dense_rank(dplyr::desc(patch_area_ha))
-  ) %>% 
-  dplyr::ungroup() %>% 
-  dplyr::arrange(scenario_id, area_name, cnstrnt_class, dplyr::desc(patch_area_ha)) %>% 
-  # calculate proportion of total area in each patch
-  dplyr::inner_join(
-    # total area of fireshed project areas included for analysis
-      # after union to remove internal boundaries
-    fireshed_proj_area %>% 
-      dplyr::mutate(pa_id=as.character(pa_id)) %>% 
-      dplyr::inner_join(
-        constrained_by_scnro_ls_pa %>% 
-          dplyr::filter(
-            scenario_id==1
-            & pct_pa_intrsct>=0.25
-          ) %>% 
-          dplyr::select(pa_id, area_name)
-        , by = dplyr::join_by(pa_id)
-        , multiple = "all"
-      ) %>% 
-      dplyr::group_by(area_name) %>% 
-      dplyr::summarize(
-        geometry = sf::st_union(geometry, by_feature = F)
-      ) %>%
-      dplyr::mutate(
-        total_area_ha = as.numeric(sf::st_area(geometry))/10000
-      ) %>% 
-      sf::st_drop_geometry()
-    , by = dplyr::join_by(area_name)
-  ) %>% 
-  dplyr::mutate(
-    pct_patch_landscape = patch_area_ha / total_area_ha
+
+```{r landscape-map}
+xxx <- 4
+# set basemap
+plt_basemap <- landscape_basemap_fn(row_n = xxx)
+# load raster data
+rast_list_temp <- raster_data_read_fn(row_n = xxx)
+# get all the plots
+# ls()[grep("_fn",ls())]
+spatial_frmwrk_map_temp <- spatial_frmwrk_map_fn(row_n = xxx) + 
+  theme(
+    legend.position = "top"
+    , legend.direction = "vertical"
+    , plot.title = element_blank()
   )
-# aggregate to constraint class level
-agg_cnstrnt_class_patches <- cnstrnt_class_patches %>% 
-  sf::st_drop_geometry() %>% 
-  dplyr::group_by(area_name, scenario_lab, cnstrnt_class) %>% 
-  dplyr::summarize(
-    max_patch_area_ha = max(patch_area_ha, na.rm = T)
-    , mean_patch_area_ha = mean(patch_area_ha, na.rm = T)
-    , max_pct_patch_landscape = max(pct_patch_landscape, na.rm = T)
-    , sum_pct_patch_landscape = sum(pct_patch_landscape)
-  ) %>% 
-  dplyr::ungroup() %>%
-  dplyr::mutate(
-    max_pct_patch_landscape_hack = dplyr::case_when(
-      cnstrnt_class=="high constraint" ~ -max_pct_patch_landscape
-      , TRUE ~ max_pct_patch_landscape
-    )
-  ) %>% 
-  dplyr::filter(
-    cnstrnt_class!="med. constraint"
-  )
-
+landcover_map_temp <- landcover_map_fn(row_n = xxx, rast_agg_fact = 8) +
+  theme(plot.title = element_blank())
+protected_map_temp <- protected_map_fn(row_n = xxx, rast_agg_fact = 8) +
+  theme(plot.title = element_blank())
+slopes_map_temp <- slopes_map_fn(row_n = xxx, rast_agg_fact = 8) +
+  theme(plot.title = element_blank())
+roads_map_temp <- roads_map_fn(row_n = xxx, rast_agg_fact = 8) +
+  theme(plot.title = element_blank())
+riparian_map_temp <- riparian_map_fn(row_n = xxx, rast_agg_fact = 8) +
+  theme(plot.title = element_blank())
+administrative_map_temp <- administrative_map_fn(row_n = xxx, rast_agg_fact = 8) +
+  theme(plot.title = element_blank())
+treatable_map_temp <- treatable_map_fn(row_n = xxx, rast_agg_fact = 8) +
+  theme(plot.title = element_blank())
+reduction_table_temp <- reduction_table_fn(row_n = xxx)
+title_plot_temp <- title_plot_fn(row_n = xxx)
 ```
 
-
-
-
-
-```{r patch-plt-functions}
-# function to plot scenario constraints + basemap
-scenario_cnstrnt_map_fn <- function(row_n = 1) {
-  plt <- landscape_basemap_fn(row_n) + 
-      geom_sf(
-        data = 
-          # prep fireshed data for plotting
-          fireshed_proj_area %>% 
-              dplyr::select(pa_id, geometry) %>% 
-              dplyr::mutate(pa_id=as.character(pa_id)) %>% 
-              dplyr::inner_join(
-                constrained_by_scnro_ls_pa %>% 
-                  dplyr::filter(
-                    area_name == area_nm_list[row_n]
-                    & pct_pa_intrsct>=0.25
-                  )
-                , by = dplyr::join_by("pa_id")
-                , multiple = "all"
-              ) %>% 
-              dplyr::mutate(
-                dplyr::across(
-                  tidyselect::starts_with("pct_")
-                  , ~ scales::percent(as.numeric(.x), accuracy = 0.1)
-                )
-                , dplyr::across(
-                  tidyselect::ends_with("_ha")
-                  , ~ scales::comma(as.numeric(.x), accuracy = 1)
-                )
-                , scenario_lab = scenario_lab %>% forcats::fct_rev()
-              ) %>%
-          sf::st_transform(crs=plt_crs)
-        , aes(fill = cnstrnt_class), lwd = 0.05
-        , inherit.aes = F
-        , alpha = 0.6
-      ) +
-      geom_sf(
-        data = wf_landscapes %>% 
-          dplyr::filter(
-              area_name == area_nm_list[row_n]
-            ) %>% 
-          sf::st_transform(crs=plt_crs)
-        , fill = NA, color = "black", lwd = 0.3
-        , inherit.aes = F
-      ) +
-      facet_grid(
-        cols = vars(scenario_lab)
-        , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
-        # , switch = "both"
-      ) +
-      scale_fill_manual(values = cols_rdylbu_lt) +
-      labs(
-        fill = "Level of\nConstraint"
-      ) +
-        guides(
-        fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
-      )
-  # return
-  return(plt)
-}
-# scenario_cnstrnt_map_fn(20)
-# function to highlight largest patch with fireshed project areas under
-cols_rdylbu_dk <- c(
-  "low constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[2]
-  , "med. constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[7]
-  , "high constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[10]
-)
-largest_patch_map_fn <- function(nrow = 1){
-    plt <- scenario_cnstrnt_map_fn(nrow) +
-      geom_sf(
-          data = cnstrnt_class_patches %>%
-            dplyr::filter(
-              area_name == area_nm_list[nrow]
-              & patch_area_rank == 1
-              & cnstrnt_class != "med. constraint"
-            ) %>%
-            sf::st_transform(crs=plt_crs)
-          , aes(color = cnstrnt_class, fill = cnstrnt_class), lwd = 1.4
-          , inherit.aes = F
-          , alpha = 0
-          # , show.legend = F
-        ) +
-      scale_color_manual(values = cols_rdylbu_dk, drop = F) +
-      labs(
-        color = "Level of\nConstraint"
-        , subtitle = "largest patch of interconnected fireshed project areas by level of mechanical constraint" # largest patch of spatially adjacent...
-      ) +
-      theme(
-        # plot.subtitle = element_text(size = 8)
-        plot.subtitle = element_blank()
-      ) +
-      guides(
-        color = "none"
-        , fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9, linewidth = 0))
-      )
-  # return
-  return(plt)
-}
-# scenario_cnstrnt_map_fn(4)
-# largest_patch_map_fn(4)
-#### combine patch map with proportion of largest patch
-# plot large patch proportion of area horizontal to match map
-plt_patch_prop_fn <- function(row_n = 1) {
-  # bar plot
-  plt_patch_prop_temp <- 
-    ggplot(
-      data = agg_cnstrnt_class_patches %>%
-        dplyr::filter(area_name==area_nm_list[row_n]) %>% 
-        dplyr::mutate(scenario_lab = forcats::fct_rev(scenario_lab))
-      , mapping = aes(
-        y = 1
-        , x = max_pct_patch_landscape_hack
-        , fill = cnstrnt_class
-        , group = cnstrnt_class
-      )
-    ) +
-      geom_col(
-        width = 0.7, alpha = 0.9
-      ) +
-      geom_vline(xintercept = 0, color = "gray55", linetype = "solid", linewidth = 0.7) +
-      geom_text(
-        mapping = aes(
-          label = ifelse(
-            max_pct_patch_landscape_hack<0
-            , scales::percent(max_pct_patch_landscape, accuracy = 1)
-            , ""
-          )
-          , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
-          , fontface = "bold"
-        )
-        , color = "black", size = 4
-        , hjust = +1
-      ) +
-      geom_text(
-        mapping = aes(
-          label = ifelse(
-            max_pct_patch_landscape_hack>=0
-            , scales::percent(max_pct_patch_landscape, accuracy = 1)
-            , ""
-          )
-          , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
-          , fontface = "bold"
-        )
-        , color = "black", size = 4
-        , hjust = 0
-      ) +
-      # label ha below pct
-      geom_text(
-        mapping = aes(
-          label = ifelse(
-            max_pct_patch_landscape_hack<0
-            , paste0(
-                scales::comma(max_patch_area_ha,suffix = "k", scale = 1e-3, accuracy = 1)
-                , " ha"
-            )
-            , ""
-          )
-          , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
-          , fontface = "bold"
-        )
-        , color = "black", size = 2.7
-        , hjust = +1
-        , vjust = 1.9
-      ) +
-      geom_text(
-        mapping = aes(
-          label = ifelse(
-            max_pct_patch_landscape_hack>=0
-            , paste0(
-                scales::comma(max_patch_area_ha,suffix = "k", scale = 1e-3, accuracy = 1)
-                , " ha"
-            )
-            , ""
-          )
-          , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
-          , fontface = "bold"
-        )
-        , color = "black", size = 2.7
-        , hjust = 0
-        , vjust = 1.9
-      ) +
-      annotate(
-        geom = "text"
-        , x = -0.88
-        , y = -0.5
-        , label = "high constraint"
-        , color = cols_rdylbu_lt[3]
-        , fontface = "bold"
-        , size = 2.5
-      ) +
-      annotate(
-        geom = "text"
-        , x = 0.88
-        , y = -0.5
-        , label = "low constraint"
-        , color = cols_rdylbu_lt[1]
-        , fontface = "bold"
-        , size = 2.5
-      ) +
-      scale_fill_manual(values = cols_rdylbu_lt) +
-      scale_x_continuous(
-        limits = c(-1.12,1.12)
-        , labels = scales::percent_format()
-        , position = "bottom"
-      ) +
-      scale_y_discrete() +
-      facet_grid(
-        cols = vars(scenario_lab)
-        , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
-        # , switch = "both"
-      ) +
-      labs(
-        fill = "Level of\nConstraint"
-        , subtitle = "" # "percentage of total landscape area comprised by the largest patch" # "Largest Patch % of Landscape Area"
-        , x = "Percent of Overall Landscape Area Comprised by the Largest Patch" # "Largest Patch % of Landscape Area"
-        , y = ""
-      ) +
-      theme_light() +
-      theme(
-        legend.position = "none" # "top"
-        , legend.direction  = "horizontal"
-        , legend.title = element_text(size=7)
-        , axis.title.x = element_text(size=8, face = "bold")
-        , axis.title.y = element_blank()
-        , axis.text.x = element_blank()
-        , axis.ticks.x = element_blank()
-        , panel.grid.major = element_blank()
-        , panel.grid.minor = element_blank()
-        , strip.text = element_text(color = "black", face = "bold", size = 8)
-        # , strip.text = element_blank()
-      ) +
-      guides(
-        fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
-      )
-  return(plt_patch_prop_temp)
-}
-# plt_patch_prop_fn(20)
-```
-
-distribution of fireshed planning areas
-
-```{r fireshed-cnstrnt-dist}
-plt_fshed_cnstrnt_lvl_fn <- function(row_n = 1) {
-  
-  plt_fshed_cnstrnt_lvl_temp <-
-    constrained_by_scnro_ls_pa %>% 
-      dplyr::filter(
-        area_name==area_nm_list[row_n]
-        & pct_pa_intrsct>=0.25
-      ) %>% 
-      dplyr::group_by(pa_id,scenario_id) %>% 
-      dplyr::filter(dplyr::row_number()==1) %>% 
-      dplyr::ungroup() %>% 
-      dplyr::filter(fireshed_crisis_strategy  %in% c("USFS-Only", "All-Lands")) %>% 
-      dplyr::count(scenario_id, scenario_desc, scenario_lab, cnstrnt_class) %>% 
-      dplyr::group_by(scenario_desc, scenario_lab) %>% 
-      dplyr::mutate(
-        pct = n/sum(n)
-        , dta_src = "High-Risk Firesheds"
-      ) %>% 
-      dplyr::bind_rows(
-        constrained_by_scnro_ls_pa %>% 
-          dplyr::filter(
-            area_name==area_nm_list[row_n]
-            & pct_pa_intrsct>=0.25
-          ) %>% 
-          dplyr::group_by(pa_id,scenario_id) %>% 
-          dplyr::filter(dplyr::row_number()==1) %>% 
-          dplyr::ungroup() %>% 
-          dplyr::count(scenario_id, scenario_desc, scenario_lab, cnstrnt_class) %>% 
-          dplyr::group_by(scenario_desc, scenario_lab) %>% 
-          dplyr::mutate(
-            pct = n/sum(n)
-            , dta_src = "Overall Landscape Area"
-          )
-      ) %>% 
-      dplyr::mutate(
-        dta_src = dta_src %>% forcats::fct_rev()
-      ) %>% 
-  # plot
-    ggplot() +
-    geom_col(
-      mapping = aes(x = pct, y = scenario_lab, fill=cnstrnt_class)
-      ,width = 0.7, alpha=0.8
-    ) +
-    geom_text(
-      mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
-          ,label = scales::percent(ifelse(pct>=0.065,pct,NA), accuracy = 1)
-          , fontface = "bold"
-        )
-      , position = position_stack(vjust = 0.5)
-      , color = "black", size = 3.1 # 2.8
-      , vjust = 0
-    ) +
-    geom_text(
-      mapping = aes(x = pct, y = scenario_lab, group=cnstrnt_class
-          ,label = ifelse(pct>=0.065,
-            paste0("n="
-              ,scales::comma(n, accuracy = 1)
-            )
-            , NA)
-        )
-      , position = position_stack(vjust = 0.5)
-      , color = "black", size = 2.5 # 2.8
-      , vjust = 1.5
-    ) +
-    scale_fill_brewer(type = "div", palette = "RdYlBu", direction = -1) +
-    facet_grid(cols = vars(dta_src)) +
-    scale_x_continuous(labels = scales::percent_format()) +
-    labs(
-      fill = "Level of\nConstraint"
-      , y = ""
-      , x = "Percent of Fireshed Project Areas"
-      # , caption = nlab_temp
-      , title = "Distribution of fireshed project areas"
-    ) +
-    theme_light() +
-    theme(
-      legend.position = "top"
-      , legend.title = element_text(size=8)
-      , axis.title = element_text(size=9)
-      , axis.title.x = element_text(size=8, face = "bold")
-      , axis.text.x = element_text(size = 7)
-      , axis.text.y = element_text(color = "black", face = "bold")
-      , strip.text = element_text(size = 10, color = "black", face = "bold")
-      , plot.caption = element_text(size = 8, face = "bold")
-    ) + 
-    guides(
-      fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9,size = 8,linewidth = 0.5))
-    )
-  return(plt_fshed_cnstrnt_lvl_temp)
-}
-# plt_fshed_cnstrnt_lvl_fn(7)
-```
-
-## Landscape Mapping
-
-```{r function-write-pdfs}
-#function to run all the plots and export pdfs
-pdf_write_fn <- function(row_n = 1, rast_agg_fact = 15){
-  # remove spaces from area name for file naming
-  fname <- area_nm_list[row_n] %>% 
-        stringr::str_remove_all("[^[A-Za-z,]]")
-  # define margin between plot and rectangle around
-  my_margin <- margin(0.2,0.2,0.2,0.2, "cm")
-  ### set up landscape plots
-  # xxx <- 4
-  # agg_fact_temp <- 15
-  # set basemap
-  # !!!!!!!!!THIS IS SET GLOBALLY!!!!!!!!!
-  plt_basemap <<- landscape_basemap_fn(row_n = row_n)
-  # load raster data
-  # !!!!!!!!!THIS IS SET GLOBALLY!!!!!!!!!
-  rast_list_temp <<- raster_data_read_fn(row_n = row_n)
-  # get all the plots
-  # ls()[grep("_fn",ls())]
-  spatial_frmwrk_map_temp <- spatial_frmwrk_map_fn(row_n = row_n) + 
-    theme(
-      legend.position = "top"
-      , legend.direction = "vertical"
-      , plot.title = element_blank() # element_text(size = 14, face = "bold", hjust = 0.5)
-    )
-  # spatial_frmwrk_map_temp
-  landcover_map_temp <- landcover_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
-    theme(plot.title = element_blank())
-  protected_map_temp <- protected_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
-    theme(plot.title = element_blank())
-  slopes_map_temp <- slopes_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
-    theme(plot.title = element_blank())
-  roads_map_temp <- roads_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
-    theme(plot.title = element_blank())
-  riparian_map_temp <- riparian_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
-    theme(plot.title = element_blank())
-  administrative_map_temp <- administrative_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
-    theme(plot.title = element_blank())
-  treatable_map_temp <- treatable_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
-    theme(plot.title = element_blank())
-  reduction_table_temp <- reduction_table_fn(row_n = row_n)
-  title_plot_temp <- title_plot_fn(row_n = row_n)
-##################################################################
-##################################################################
-# compile plots for pdf export
-##################################################################
-##################################################################
-#############################
-#############################
-# PAGE 1
-#############################
-#############################
-  # small maps
-  plt_grd1 <-
-    cowplot::plot_grid(
-      # small maps
-      plotlist = list(
-        landcover_map_temp + theme(plot.caption = element_text(size = 8))
-        , protected_map_temp + theme(plot.caption = element_text(size = 8))
-        , slopes_map_temp + theme(plot.caption = element_text(size = 8))
-        , roads_map_temp + theme(plot.caption = element_text(size = 8))
-        , riparian_map_temp + theme(plot.caption = element_text(size = 8))
-        , administrative_map_temp + theme(plot.caption = element_text(size = 8))
-      )
-      , ncol = 3
-      , nrow = 2
-      , align = "hv"
-    ) +
-    theme(
-      plot.margin = my_margin
-      , plot.background = element_rect(
-        fill = "white", color = "gray77", linewidth = 1
-      )
-    )
     
-  # ALL MAPS
-  plt_grd2 <-
-    cowplot::plot_grid(
-      plotlist = list(
-        spatial_frmwrk_map_temp + 
-          theme(
-            plot.margin = margin(0.2,0.3,0.2,0.3,"cm")
-             , plot.background = element_rect(
-                fill = "white", color = "gray77", linewidth = 1
-              )
-            , legend.text = element_text(size = 7)
-            , legend.title = element_text(size = 7)
-          )
-        , NULL
-        , plt_grd1
-      )
-      , ncol = 3
-      , nrow = 1
-      , align = "h"
-      , axis = "b"
-      , rel_widths = c(0.4,0.01,1)
-    ) +
-    theme(
-      plot.margin = my_margin
-      , plot.background = element_rect(fill = "white", color = "gray23", linewidth = 2)
-    )
-  # combine maps with title
-  page1 <- cowplot::plot_grid(
-    plotlist = list(
-      # title / spatial framework
-      title_plot_temp
-      , NULL
-      , plt_grd2
-    )
-    , ncol = 1
-    , nrow = 3
-    , align = "v"
-    , axis = "lr"
-    , rel_heights =  c(0.15,0.05,1)
-    , labels = c(
-          ""
-          ,""
-          , "Nested spatial framework for firesheds and constraints to mechanical treatment"
-        )
-      , label_size = 14
-      , label_fontface = "bold"
-      , label_colour = "black"
-      , label_x = 0, label_y = 1
-      , hjust = 0, vjust = -0.5
-    ) +
-    theme(
-      plot.margin = my_margin
-      , plot.background = element_rect(fill = "white", color = NA)
-    )
-  # export pdf
-  ggplot2::ggsave(
-    filename = paste0(
-      "../data/pdf/Landscape_"
-      , fname
-      , "1"
-      ,".pdf")
-    , plot = page1
-    , width = 11
-    , height = 8.5
-    , units = "in"
-    , dpi = "print"
-  )    
-#############################
-#############################
-# PAGE 2
-#############################
-#############################
-  # page 2 available/constrained
-  plt_grd3 <-
-    cowplot::plot_grid(
-      plotlist = list(
-        NULL
-        , reduction_table_temp + theme(plot.margin = my_margin)
-        , treatable_map_temp + theme(plot.margin = my_margin, plot.caption = element_text(size = 8))
-        , NULL
-      )
-      , ncol = 1
-      , align = "v"
-      , axis = "lr"
-      , rel_heights =  c(0.01,0.4,1,0.01)
-    ) +
-    theme(
-      plot.margin = my_margin
-      , plot.background = element_rect(fill = "white", color = "gray23", linewidth = 2)
-    )
-  # combine with title
-  page2 <-
-    cowplot::plot_grid(
-        # title / spatial framework
-        plotlist = list(
-          title_plot_temp
-          , NULL
-          , plt_grd3
-          )
-        , ncol = 1
-        , nrow = 3
-        , align = "v"
-        , axis = "lr"
-        , rel_heights =  c(0.15,0.05,1)
-        , labels = c(
-          ""
-          ,""
-          , "Mechanically available acreage after removing layered operational constraints"
-        )
-      , label_size = 14
-      , label_fontface = "bold"
-      , label_colour = "black"
-      , label_x = 0, label_y = 1
-      , hjust = 0, vjust = -0.5
-      ) +
-      theme(
-        plot.margin = my_margin
-        , plot.background = element_rect(fill = "white", color = NA)
-      )
-  # export
-  ggplot2::ggsave(
-    filename = paste0(
-      "../data/pdf/Landscape_"
-      , fname
-      , "2"
-      ,".pdf")
-    , plot = page2
-    , width = 11
-    , height = 8.5
-    , units = "in"
-    , dpi = "print"
-  )    
-#############################
-#############################
-# PAGE 3
-#############################
-#############################
-# fireshed distribution
-plt_grd11 <-
-    cowplot::plot_grid(
-      plotlist = list(
-        plt_cnstrnt_class_table +
-          theme(
-            plot.margin = my_margin
-            , plot.background = element_rect(
-              fill = "white", color = "gray77", linewidth = 1
-            )
-          )
-        , NULL
-        , plt_fshed_cnstrnt_lvl_fn(row_n) + 
-          theme(
-            plot.title = element_blank() # element_text(hjust = 0.5)
-            , plot.margin = my_margin # margin(0,0,0,0, "cm")
-            , plot.background = element_rect(
-              fill = "white", color = "gray77", linewidth = 1
-            )
-          )
-      )
-      , ncol = 3
-      , nrow = 1
-      , align = "h"
-      , axis = "b"
-      , rel_widths = c(0.5,0.01,1)
-    ) 
-# map and patch 
-plt_grd12 <-
-    cowplot::plot_grid(
-      plotlist = list(
-        largest_patch_map_fn(row_n) + 
-            theme(
-              legend.position = "none"
-              , plot.title = element_blank()
-              , plot.margin = margin(0,0,0,0, "cm")
-            )
-        , plt_patch_prop_fn(row_n) +
-          theme(
-            plot.title = element_blank() # element_text(hjust = 0.5)
-            , plot.margin = margin(0,0,0,0, "cm") #my_margin
-          )
-      )
-      , ncol = 1
-      , nrow = 2
-      , align = "v"
-      , axis = "lr"
-      , rel_heights = c(1,0.33)
-    ) +
-    theme(
-      plot.margin = my_margin
-      , plot.background = element_rect(
-          fill = "white", color = "gray77", linewidth = 1
-        )
-    )
-# combine with maps
-plt_grd13 <- 
-    cowplot::plot_grid(
-      plotlist = list(
-        plt_grd11
-        , NULL
-        , plt_grd12
-      )
-      , ncol = 1
-      , align = "v"
-      , axis = "lr"
-      , rel_heights =  c(0.6,0.01,1)
-    ) +
-    theme(
-      plot.margin = my_margin
-      , plot.background = element_rect(fill = "white", color = "gray23", linewidth = 2)
-    )
-# combine with title
-  page3 <-
-    cowplot::plot_grid(
-    plotlist = list(
-      # title / spatial framework
-      title_plot_fn(row_n)
-      , NULL
-      , plt_grd13
-    )
-    , ncol = 1
-    , nrow = 3
-    , align = "v"
-    , axis = "lr"
-    , rel_heights =  c(0.15,0.05,1)
-    , labels = c(
-        ""
-        ,""
-        , "Spatial arrangement of mechanically available acreage using nested spatial framework for firesheds"
-      )
-    , label_size = 14
-    , label_fontface = "bold"
-    , label_colour = "black"
-    , label_x = 0, label_y = 1
-    , hjust = 0, vjust = -0.5
-    ) +
-    theme(
-      plot.margin = my_margin
-      , plot.background = element_rect(fill = "white", color = NA)
-    )
-  # export pdf
-  ggplot2::ggsave(
-    filename = paste0(
-      "../data/pdf/Landscape_"
-      , fname
-      , "3"
-      ,".pdf")
-    , plot = page3
-    , width = 11
-    , height = 8.5
-    , units = "in"
-    , dpi = "print"
-  )
-# clear global vars 
-  plt_basemap <<- NULL
-  rast_list_temp <<- NULL
-}
-# pdf_write_fn(2)
+Row
+-------------------------------------
+    
+### Chart 1
+    
+```{r, include = T}
+landcover_map_temp
+```
+ 
+### Chart 2
+    
+```{r, include = T}
+protected_map_temp
+``` 
+
+### Chart 3
+
+```{r, include = T}
+slopes_map_temp
 ```
 
-```{r pdf-write-merge}
-# create dir for pdf plots
-  hey_dir <- "../data/pdf"
-  if(dir.exists(hey_dir)==FALSE){
-    dir.create(hey_dir)
-  }else{ # delete all files if folder exists
-    file.remove(list.files(hey_dir, full.names = TRUE))
-  }
-# 1:length(area_nm_list) %>% 
-# c(1,2,4,12,9,18) %>%
-c(2,4) %>%
-  purrr::map(pdf_write_fn, rast_agg_fact=15)
-# combine all pdfs together
-pdfs_temp <- sort(list.files("../data/pdf", pattern = "\\.pdf$", full.names = TRUE))
-# combine with pdftools
-pdftools::pdf_combine(
-  pdfs_temp
-  , output = paste0(
-    "../data/pdf/"
-    , "WCS_Mech_Constraints_"
-    , gsub("-", "", Sys.Date())
-    , ".pdf"
-  )
-)
+Row
+-------------------------------------
+    
+### Chart 4
+    
+```{r, include = T}
+roads_map_temp
+```
+    
+### Chart 5
 
+```{r, include = T}
+riparian_map_temp
 ```
 
+### Chart 6
 
-```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
-remove(list = ls()[grep("_temp",ls())])
-gc()
+```{r, include = T}
+administrative_map_temp
 ```
-
