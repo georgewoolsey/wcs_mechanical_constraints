@@ -27,9 +27,23 @@ library(tidytext) # reorder within facets
 # spatial analysis
 library(sf)
 library(USAboundaries)
-library(ggmap) # nice ggplot maps
+
+# GGMAP BROKEN ON 10/31/2023
+# https://stackoverflow.com/questions/77432892/problem-visualizing-maps-with-staten-maps
+# remove.packages("ggmap")
+# devtools::install_github("stadiamaps/ggmap")
+library(ggmap)
+# https://www.youtube-nocookie.com/embed/6jUSyI6x3xg
+# ggmap::register_stadiamaps("APIKEY", write = T)
+# ggmap::get_stadiamap(c(left = 32.2, bottom = 34.5, right = 34.8, top = 35.8), zoom = 10, maptype = "stamen_terrain") %>% ggmap()
+
 # set seed
 set.seed(11)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls())
+gc()
 ```
 
 ```{r, results='hide'}
@@ -38,12 +52,25 @@ set.seed(11)
 sf::sf_use_s2(FALSE)
 ```
 
-See the USFS [Wildfire Crisis Strategy]((https://www.fs.usda.gov/managing-land/wildfire-crisis)) (WCS) document for background information.
-
-```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
-remove(list = ls())
-gc()
+```{r color-pals, include=FALSE}
+# define colors
+cols_rdylbu_lt <- c(
+  "low constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[1]
+  , "med. constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[2]
+  , "high constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[3]
+)
+cols_rdylbu_dk <- c(
+  "low constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[2]
+  , "med. constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[7]
+  , "high constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[10]
+)
+cols_cnstrnt_avail <- c("#7A0403","#466BE3")
+cols_obj_r <- c("darkcyan", "gray40", "orangered3")
+# fix this one so orange is 3
+cols_obj_html <- c("#008b8b", "#bebebe", "#cd3700")
 ```
+
+See the USFS [Wildfire Crisis Strategy]((https://www.fs.usda.gov/managing-land/wildfire-crisis)) (WCS) document for background information.
 
 ## Scenarios Considered
 
@@ -1041,7 +1068,7 @@ bbox_temp <- c(
 hey_map <- ggmap::get_stamenmap(
   bbox = bbox_temp
   , zoom = 6
-  , maptype = "terrain" #"toner-hybrid" # "terrain"
+  , maptype = "toner-hybrid" #"toner-hybrid" # "terrain"
   , crop = T
 )
 # # google map
@@ -1339,8 +1366,6 @@ ggplot2::ggsave(
 Adding in bar for remaining area:
 
 ```{r ls-rdctn-rmn-plt, fig.height=10}
-# palette
-cols_cnstrnt_avail <- c("#7A0403","#466BE3")
 
 constrained_by_scnro_ls_long %>% 
   dplyr::mutate(
@@ -1452,9 +1477,6 @@ ggplot2::ggsave(
 ```
 
 ```{r ls-rdctn-rmn-plt-wide, fig.height=10}
-# palette
-cols_cnstrnt_avail <- c("#7A0403","#466BE3")
-
 constrained_by_scnro_ls_long %>% 
   dplyr::mutate(
     constraint = forcats::fct_recode(constraint,"Available"="Total")
@@ -1712,7 +1734,7 @@ ggplot(data = constrained_by_scnro_ls_pa %>% dplyr::filter(scenario_id==1)
     ) +
     geom_violin(aes(fill = state)) + 
     geom_boxplot(width = 0.15) +
-    # geom_point(size = 0.7, color = "gray33", alpha = 0.2) +
+    # geom_point(size = 0.7, color = cols_obj_r[2], alpha = 0.2) +
     geom_text(
       data = constrained_by_scnro_ls_pa %>% 
         dplyr::filter(scenario_id==1) %>% 
@@ -1751,7 +1773,7 @@ ggplot(data = constrained_by_scnro_ls_pa %>% dplyr::filter(scenario_id==1)
 
 ```{r fs-map-prep, results='hide'}
 # polish for mapping
-map_fs_temp <- fireshed_proj_area %>% 
+map_firesheds <- fireshed_proj_area %>% 
   dplyr::select(pa_id, geometry) %>% 
   dplyr::mutate(pa_id=as.character(pa_id)) %>% 
   dplyr::inner_join(
@@ -1787,23 +1809,23 @@ map_fs_temp <- fireshed_proj_area %>%
     , Pct.Treatable.Area = pct_rmn5_administrative
   )
 # filter for mapview
-mapview_fs_temp <- map_fs_temp %>% 
+mapview_fs_temp <- map_firesheds %>% 
   dplyr::filter(
     scenario_id == 2
   )
 # ## filter for high priority only
-# hi_map_fs_temp <- map_fs_temp %>% 
+# hi_map_firesheds <- map_firesheds %>% 
 #   dplyr::filter(!is.na(fireshed_crisis_strategy))
 # filter for mapview
-mapview_fs_sc1_temp <- map_fs_temp %>% 
+mapview_fs_sc1_temp <- map_firesheds %>% 
   dplyr::filter(
     scenario_id == 1
   )
-mapview_fs_sc3_temp <- map_fs_temp %>% 
+mapview_fs_sc3_temp <- map_firesheds %>% 
   dplyr::filter(
     scenario_id == 3
   )
-mapview_fs_sc3_hi_temp <- map_fs_temp %>% 
+mapview_fs_sc3_hi_temp <- map_firesheds %>% 
   dplyr::filter(
     scenario_id == 3
     & fireshed_crisis_strategy %in% c("USFS-Only", "All-Lands")
@@ -1954,12 +1976,194 @@ mapview::mapview(
 # **Scenario 2 used for map above**
 ```
 
+```{r, include=FALSE, eval=FALSE}
+# pike san isabel to match pods map
+# https://cfri.colostate.edu/wp-content/uploads/sites/22/2021/06/CameronPeakFirePODsReport.pdf
+# extract file name
+    lyr_nms_temp <-
+      sf::st_layers(dsn = "c:/Data/usfs/bhef_rxfire_plan/data/S_USA.NFSLandUnit.gdb//S_USA.NFSLandUnit.gdb")$name
+    lyr_temp <- lyr_nms_temp[grep("NFSLandUnit", lyr_nms_temp)][1]
+  # load in data
+    forests_temp <- sf::st_read(
+        dsn = "c:/Data/usfs/bhef_rxfire_plan/data/S_USA.NFSLandUnit.gdb//S_USA.NFSLandUnit.gdb"
+        , layer = lyr_temp
+        , query = "SELECT * FROM \"NFSLandUnit\" 
+                WHERE 
+                  REGION IN ('02')
+                  AND NFSLANDUNITTYPE = 'National Forest'
+            "
+      ) %>% 
+      rename_with(~ tolower(
+        gsub(" ", "_", 
+           str_trim(gsub("\\s+", " ", .x))
+        )
+      ))
+    
+  #rename sf geom column
+    names(forests_temp)[names(forests_temp)==tolower(attr(forests_temp, "sf_column"))] = "geometry"
+    sf::st_geometry(forests_temp) = "geometry"
+    
+  # transform
+    forests_temp <- forests_temp %>% 
+      sf::st_transform(crs = transform_crs)
+
+  #filter
+  forests_temp <- forests_temp %>% 
+      dplyr::filter(
+        stringr::str_starts(tolower(nfslandunitname), "pike")
+        | stringr::str_starts(tolower(nfslandunitname), "san isabel")
+      ) %>% 
+      sf::st_union()
+##############################################################
+##############################################################
+##############################################################
+mapview::mapview(forests_temp
+        , color = "black"
+        , lwd = 1
+        , alpha.regions = 0
+        , label = FALSE
+        , legend = FALSE
+        , popup = FALSE
+        , layer.name = "pike"
+        , hide = TRUE
+  ) +
+mapview::mapview(
+  mapview_fs_temp
+  , zcol = "cnstrnt_class"
+  , col.regions = RColorBrewer::brewer.pal(n=3,name="RdYlBu") %>% rev()
+  , alpha.regions = 0.6
+  , lwd = 0.2
+  , label = FALSE
+  , legend = FALSE
+  , layer.name = "Scenario 2 Constraints"
+  , hide = FALSE
+  , popup = leafpop::popupTable(
+      mapview_fs_temp
+      , zcol = c(
+        "Priority.Area.Name"
+        , "Level.of.Constraint"
+        , "Pct.Treatable.Class"
+        , "Fireshed.ProjArea.ID"
+        , "Fireshed.ProjArea.Area.Hectares"
+        , "Fireshed.WCS.Status"
+        , "ForestShrub.Area.Hectares"
+        , "Pct.Rdctn.Protected"
+        , "Pct.Rdctn.Slope"
+        , "Pct.Rdctn.Roads"
+        , "Pct.Rdctn.Riparian"
+        , "Pct.Rdctn.Administrative"
+        , "Treatable.Area.Hectares"
+        , "Pct.Treatable.Area"
+      )
+      , row.numbers = FALSE
+      , feature.id = FALSE
+    )
+) + 
+mapview::mapview(
+  mapview_fs_sc1_temp
+  , zcol = "cnstrnt_class"
+  , col.regions = RColorBrewer::brewer.pal(n=3,name="RdYlBu") %>% rev()
+  , alpha.regions = 0.6
+  , lwd = 0.2
+  , label = FALSE
+  , legend = FALSE
+  , layer.name = "Scenario 1 Constraints"
+  , hide = TRUE
+  , popup = leafpop::popupTable(
+      mapview_fs_sc1_temp
+      , zcol = c(
+        "Priority.Area.Name"
+        , "Level.of.Constraint"
+        , "Pct.Treatable.Class"
+        , "Fireshed.ProjArea.ID"
+        , "Fireshed.ProjArea.Area.Hectares"
+        , "Fireshed.WCS.Status"
+        , "ForestShrub.Area.Hectares"
+        , "Pct.Rdctn.Protected"
+        , "Pct.Rdctn.Slope"
+        , "Pct.Rdctn.Roads"
+        , "Pct.Rdctn.Riparian"
+        , "Pct.Rdctn.Administrative"
+        , "Treatable.Area.Hectares"
+        , "Pct.Treatable.Area"
+      )
+      , row.numbers = FALSE
+      , feature.id = FALSE
+    )
+) + 
+mapview::mapview(
+  mapview_fs_sc3_temp
+  , zcol = "cnstrnt_class"
+  , col.regions = RColorBrewer::brewer.pal(n=3,name="RdYlBu") %>% rev()
+  , alpha.regions = 0.6
+  , lwd = 0.2
+  , label = FALSE
+  , legend = FALSE
+  , layer.name = "Scenario 3 Constraints"
+  , hide = TRUE
+  , popup = leafpop::popupTable(
+      mapview_fs_sc3_temp
+      , zcol = c(
+        "Priority.Area.Name"
+        , "Level.of.Constraint"
+        , "Pct.Treatable.Class"
+        , "Fireshed.ProjArea.ID"
+        , "Fireshed.ProjArea.Area.Hectares"
+        , "Fireshed.WCS.Status"
+        , "ForestShrub.Area.Hectares"
+        , "Pct.Rdctn.Protected"
+        , "Pct.Rdctn.Slope"
+        , "Pct.Rdctn.Roads"
+        , "Pct.Rdctn.Riparian"
+        , "Pct.Rdctn.Administrative"
+        , "Treatable.Area.Hectares"
+        , "Pct.Treatable.Area"
+      )
+      , row.numbers = FALSE
+      , feature.id = FALSE
+    )
+) +
+mapview::mapview(
+  mapview_fs_sc3_hi_temp
+  , zcol = "cnstrnt_class"
+  , col.regions = RColorBrewer::brewer.pal(n=3,name="RdYlBu") %>% rev()
+  , alpha.regions = 0.6
+  , lwd = 0.2
+  , label = FALSE
+  , legend = FALSE
+  , layer.name = "Scenario 3 Constraints (High Only)"
+  , hide = TRUE
+  , popup = leafpop::popupTable(
+      mapview_fs_sc3_hi_temp
+      , zcol = c(
+        "Priority.Area.Name"
+        , "Level.of.Constraint"
+        , "Pct.Treatable.Class"
+        , "Fireshed.ProjArea.ID"
+        , "Fireshed.ProjArea.Area.Hectares"
+        , "Fireshed.WCS.Status"
+        , "ForestShrub.Area.Hectares"
+        , "Pct.Rdctn.Protected"
+        , "Pct.Rdctn.Slope"
+        , "Pct.Rdctn.Roads"
+        , "Pct.Rdctn.Riparian"
+        , "Pct.Rdctn.Administrative"
+        , "Treatable.Area.Hectares"
+        , "Pct.Treatable.Area"
+      )
+      , row.numbers = FALSE
+      , feature.id = FALSE
+    )
+) 
+  
+```
+
 ### Map of Fireshed Project Areas by Scenario
 
 ```{r map-pa-cnstrnt, fig.height=8, warning=F,results='hide'}
 plt_fn_temp <- function(scnum=1) {
   plt_basemap_simple +
-    geom_sf(data = map_fs_temp %>% dplyr::filter(scenario_id==scnum)
+    geom_sf(data = map_firesheds %>% dplyr::filter(scenario_id==scnum)
             , aes(fill = cnstrnt_class), lwd = 0.05) +
     
   geom_sf(
@@ -1995,12 +2199,12 @@ plt_fn_temp <- function(scnum=1) {
     # , min.segment.length = 0
     , show.legend = F
   ) +
-  # scale_color_manual(values = c("black", "gray33")) +
+  # scale_color_manual(values = c("black", cols_obj_r[2])) +
   scale_fill_brewer(type = "div", palette = "RdYlBu", direction = -1) +
   labs(
     fill = ""
     , tag = paste0(
-      map_fs_temp %>% dplyr::filter(scenario_id==scnum) %>% 
+      map_firesheds %>% dplyr::filter(scenario_id==scnum) %>% 
         dplyr::pull(scenario_lab) %>% unique()
       , " Map"
     )
@@ -2018,9 +2222,27 @@ plt_fn_temp <- function(scnum=1) {
 # plot
 # plt_fn_temp()
 plt_fpas_sc_map <- 
-  map_fs_temp %>% dplyr::pull(scenario_id) %>% unique() %>% 
+  map_firesheds %>% dplyr::pull(scenario_id) %>% unique() %>% 
     purrr::map(plt_fn_temp)
-plt_fpas_sc_map
+# print and export maps
+  1:length(plt_fpas_sc_map) %>% 
+    purrr::map(function(x){
+    # save export images for publication
+    print(plt_fpas_sc_map[x])
+        ggplot2::ggsave(
+            filename = paste0("../data/","plt_map_pa_cnstrnt_",x,".jpeg")
+            # filename = paste0("../data/terrain/","plt_map_patches_fpa_",x,".jpeg")
+            , plot = ggplot2::last_plot()
+            , width = 8
+            , height = 8.5
+            , units = "in"
+            , dpi = "print"
+            , bg = "white"
+          )
+      }
+    )
+    
+
 ```
 
 ### Map Fireshed Project Areas by Scenario and Landscape
@@ -2038,7 +2260,7 @@ area_nm_list <- sort(unique(constrained_by_scnro_ls$area_name))
 facet_map_fn <- function(row_n=1) {
   plt <- ggplot() +
     geom_sf(
-      data = map_fs_temp %>% 
+      data = map_firesheds %>% 
         dplyr::filter(
           area_name == area_nm_list[row_n]
         )
@@ -2060,7 +2282,7 @@ facet_map_fn <- function(row_n=1) {
       , switch = "both"
       # , switch = "x"
     ) +
-    scale_color_manual(values = c("black", "gray33")) +
+    scale_color_manual(values = c("black", cols_obj_r[2])) +
     scale_fill_brewer(type = "div", palette = "RdYlBu", direction = -1) +
     labs(
       fill = ""
@@ -2137,11 +2359,6 @@ if_smaller_ha_temp <- wf_landscapes %>%
   quantile(0.45) %>% 
   purrr::pluck(1)
 # create color palette
-cols_rdylbu_lt <- c(
-  "low constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[1]
-  , "med. constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[2]
-  , "high constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[3]
-)
 # function to plot basemap
 landscape_basemap_fn <- function(row_n=1) {
   # should zoom in?
@@ -2208,7 +2425,7 @@ landscape_basemap_fn <- function(row_n=1) {
   
   # bounding box
   bb_temp <- 
-    map_fs_temp %>% 
+    map_firesheds %>% 
     dplyr::filter(
       area_name == area_nm_list[row_n]
     ) %>% 
@@ -2230,10 +2447,10 @@ landscape_basemap_fn <- function(row_n=1) {
   # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   # get map
-  hey_ggmap <- ggmap::get_stamenmap(
+  hey_ggmap <- ggmap::get_stadiamap(
     bbox = bbox_temp
     , zoom = zoom_level
-    , maptype = "terrain" #"toner-hybrid" # "terrain"
+    , maptype = "stamen_terrain" #"toner-hybrid" # "terrain"
     , crop = T
   )
 
@@ -2270,7 +2487,7 @@ landscape_basemap_fn <- function(row_n=1) {
 scenario_cnstrnt_map_fn <- function(row_n = 1) {
   plt <- landscape_basemap_fn(row_n) + 
       geom_sf(
-        data = map_fs_temp %>%
+        data = map_firesheds %>%
           dplyr::filter(
             area_name == area_nm_list[row_n]
           ) %>%
@@ -2303,7 +2520,7 @@ scenario_cnstrnt_map_fn <- function(row_n = 1) {
   # return
   return(plt)
 }
-# scenario_cnstrnt_map_fn(row_n = 12)
+# scenario_cnstrnt_map_fn(row_n = 5)
 ```
 
 ```{r scenario-maps-print, eval=F, include=T}
@@ -2326,7 +2543,7 @@ ggmap::register_google(key = api_secret, write = T)
 # area_nm_list
 # bounding box
   bb_temp <- 
-    map_fs_temp %>% 
+    map_firesheds %>% 
     dplyr::filter(
       area_name == area_nm_list[9]
     ) %>% 
@@ -2364,7 +2581,7 @@ ggmap::ggmap(hey_ggmap) +
 # use tmap for small multiple maps????
 # !!!!!!!!!!!!!!!!!!!!!!!!NOPE! didn't figure out legend and facet label controls 
 library(tmap)
-tmap::tm_shape(map_fs_temp) +
+tmap::tm_shape(map_firesheds) +
   tmap::tm_polygons(
     col = "cnstrnt_class"
     , palette = "-RdYlBu"
@@ -2463,11 +2680,6 @@ cnstrnt_class_patches <-
 
 ```{r patch-plt}
 # function to highlight largest patch with fireshed project areas under
-cols_rdylbu_dk <- c(
-  "low constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[2]
-  , "med. constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[7]
-  , "high constraint" = rev(RColorBrewer::brewer.pal(n=11,name="RdYlBu"))[10]
-)
 largest_patch_map_fn <- function(nrow = 1){
     plt <- scenario_cnstrnt_map_fn(nrow) +
       geom_sf(
@@ -2478,7 +2690,8 @@ largest_patch_map_fn <- function(nrow = 1){
               & cnstrnt_class != "med. constraint"
             ) %>%
             sf::st_transform(crs=plt_crs)
-          , aes(color = cnstrnt_class, fill = cnstrnt_class), lwd = 1.4
+          , aes(color = cnstrnt_class, fill = cnstrnt_class)
+          , lwd = 0.9
           , inherit.aes = F
           , alpha = 0
           # , show.legend = F
@@ -2500,7 +2713,7 @@ largest_patch_map_fn <- function(nrow = 1){
   return(plt)
 }
 # scenario_cnstrnt_map_fn(4)
-# largest_patch_map_fn(2)
+# largest_patch_map_fn(5)
 ```
 
 ```{r patch-plt-print}
@@ -2835,7 +3048,7 @@ Planning fewer, larger individual treatments across the landscape appears to be 
 
 ```{r hi-low-patch-comp, fig.height=10}
 # aggregate to constraint class level
-agg_cnstrnt_class_patches_temp <- cnstrnt_class_patches %>% 
+agg_cnstrnt_class_patches <- cnstrnt_class_patches %>% 
   sf::st_drop_geometry() %>% 
   dplyr::group_by(area_name, scenario_lab, cnstrnt_class) %>% 
   dplyr::summarize(
@@ -2854,9 +3067,35 @@ agg_cnstrnt_class_patches_temp <- cnstrnt_class_patches %>%
   dplyr::filter(
     cnstrnt_class!="med. constraint"
   )
+# combine with full data to get 0's
+agg_cnstrnt_class_patches <- 
+  # full data
+  dplyr::cross_join(
+    constrained_by_scnro_ls_pa %>% dplyr::select(area_name) %>% dplyr::distinct()
+    , constrained_by_scnro_ls_pa %>% dplyr::select(scenario_lab) %>% dplyr::distinct()
+  ) %>% 
+  dplyr::cross_join(
+    constrained_by_scnro_ls_pa %>% dplyr::select(cnstrnt_class) %>% dplyr::distinct()
+  ) %>% 
+  dplyr::filter(
+    cnstrnt_class!="med. constraint"
+  ) %>% 
+  # end full data
+  dplyr::left_join(
+    agg_cnstrnt_class_patches
+    , by = dplyr::join_by(area_name, scenario_lab, cnstrnt_class)
+  ) %>% 
+  # fill with 0's
+  dplyr::mutate(
+    dplyr::across(
+      .cols = tidyselect::where(is.numeric) & -c(area_name, scenario_lab, cnstrnt_class, max_pct_patch_landscape_hack)
+      , .fn = function(x){ifelse(is.na(x),0,x)}
+    )
+    , max_pct_patch_landscape_hack = ifelse(is.na(max_pct_patch_landscape_hack),-0.001,max_pct_patch_landscape_hack)
+  )
 # plot
 ggplot(
-  data = agg_cnstrnt_class_patches_temp
+  data = agg_cnstrnt_class_patches
   , mapping = aes(
     y = scenario_lab
     , x = max_pct_patch_landscape_hack
@@ -2963,200 +3202,387 @@ ggplot2::ggsave(
   )
 ```
 
-Combine map with proportion of overall landscape in largest patch plot for publication
+plot by scenario wide for presentation
 
-```{r patch-map-bars-combo}
-# select area name from area_nm_list
-area_num_temp <- 20
-# plot large patch proportion of area horizontal to match map
-plt_patch_prop_temp <- 
-  ggplot(
-    data = agg_cnstrnt_class_patches_temp %>%
-      dplyr::filter(area_name==area_nm_list[area_num_temp]) %>% 
-      dplyr::mutate(scenario_lab = forcats::fct_rev(scenario_lab))
+```{r hi-low-patch-comp-wide}
+# median for plot
+median_temp <- agg_cnstrnt_class_patches %>%
+        dplyr::mutate(
+          dplyr::across(
+            c(scenario_lab, area_name)
+            , ~ forcats::fct_rev(.x)
+          )
+        ) %>% 
+        dplyr::group_by(scenario_lab,cnstrnt_class) %>% 
+        dplyr::summarise(
+          median_pct = median(max_pct_patch_landscape_hack,na.rm=T)
+        ) %>% 
+        dplyr::ungroup()
+# plot
+ggplot(
+  data = agg_cnstrnt_class_patches %>%
+    dplyr::mutate(
+      dplyr::across(
+        c(scenario_lab, area_name)
+        , ~ forcats::fct_rev(.x)
+      )
+    )
+  , mapping = aes(
+    y = area_name
+    , x = max_pct_patch_landscape_hack
+    , fill = cnstrnt_class
+    , group = cnstrnt_class
+  )
+) +
+  geom_vline(
+    # median line
+    data = median_temp
+    , mapping = aes(xintercept=median_pct, group = cnstrnt_class, color = cnstrnt_class)
+    , linetype = "dashed"
+    , lwd = 0.5
+  ) +
+  geom_text(
+    # median line
+    data = median_temp
     , mapping = aes(
-      y = 1
-      , x = max_pct_patch_landscape_hack
-      , fill = cnstrnt_class
+      x=median_pct
+      , y=0
       , group = cnstrnt_class
-    )
-  ) +
-    geom_col(
-      width = 0.7, alpha = 0.9
-    ) +
-    geom_vline(xintercept = 0, color = "gray55", linetype = "solid", linewidth = 0.7) +
-    geom_text(
-      mapping = aes(
-        label = ifelse(
-          max_pct_patch_landscape_hack<0
-          , scales::percent(max_pct_patch_landscape, accuracy = 1)
-          , ""
-        )
-        , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
-        , fontface = "bold"
-      )
-      , color = "black", size = 4
-      , hjust = +1
-    ) +
-    geom_text(
-      mapping = aes(
-        label = ifelse(
-          max_pct_patch_landscape_hack>=0
-          , scales::percent(max_pct_patch_landscape, accuracy = 1)
-          , ""
-        )
-        , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
-        , fontface = "bold"
-      )
-      , color = "black", size = 4
-      , hjust = 0
-    ) +
-    # label ha below pct
-    geom_text(
-      mapping = aes(
-        label = ifelse(
-          max_pct_patch_landscape_hack<0
-          , paste0(
-              scales::comma(max_patch_area_ha,suffix = "k", scale = 1e-3, accuracy = 1)
-              , " ha"
-          )
-          , ""
-        )
-        , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
-        , fontface = "bold"
-      )
-      , color = "black", size = 2.7
-      , hjust = +1
-      , vjust = 1.9
-    ) +
-    geom_text(
-      mapping = aes(
-        label = ifelse(
-          max_pct_patch_landscape_hack>=0
-          , paste0(
-              scales::comma(max_patch_area_ha,suffix = "k", scale = 1e-3, accuracy = 1)
-              , " ha"
-          )
-          , ""
-        )
-        , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
-        , fontface = "bold"
-      )
-      , color = "black", size = 2.7
-      , hjust = 0
-      , vjust = 1.9
-    ) +
-    annotate(
-      geom = "text"
-      , x = -0.85
-      , y = 0.0
-      , label = "high constraint"
-      , color = cols_rdylbu_lt[3]
+      , color = cnstrnt_class
+      , label = scales::percent(median_pct, accuracy = 1)
       , fontface = "bold"
-      , size = 2.5
-    ) +
-    annotate(
-      geom = "text"
-      , x = 0.85
-      , y = 0.0
-      , label = "low constraint"
-      , color = cols_rdylbu_lt[1]
-      , fontface = "bold"
-      , size = 2.5
-    ) +
-    scale_fill_manual(values = cols_rdylbu_lt) +
-    scale_x_continuous(
-      limits = c(-1.22,1.22)
-      , labels = scales::percent_format()
-      , position = "bottom"
-    ) +
-    scale_y_discrete() +
-    facet_grid(
-      cols = vars(scenario_lab)
-      , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
-      # , switch = "both"
-    ) +
-    labs(
-      fill = "Level of\nConstraint"
-      , subtitle = "" # "percentage of total landscape area comprised by the largest patch" # "Largest Patch % of Landscape Area"
-      , x = "Percent of Overall Landscape Area Comprised by the Largest Patch" # "Largest Patch % of Landscape Area"
-      , y = ""
-    ) +
-    theme_light() +
-    theme(
-      legend.position = "none" # "top"
-      , legend.direction  = "horizontal"
-      , legend.title = element_text(size=7)
-      , axis.title.x = element_text(size=8, face = "bold")
-      , axis.title.y = element_blank()
-      , axis.text.x = element_blank()
-      , axis.ticks.x = element_blank()
-      , panel.grid.major = element_blank()
-      , panel.grid.minor = element_blank()
-      , strip.text = element_text(color = "black", face = "bold", size = 8)
-      # , strip.text = element_blank()
-    ) +
-    guides(
-      fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
     )
-# combine
-cowplot::plot_grid(
-    plotlist = list(
-      plt_ptch_list[[area_num_temp]] + 
-        theme(
-          legend.position = "top"
-          , plot.title = element_blank()
-          , plot.margin = margin(0.5,0.1,0,0.1, "cm")
-        )
-      # , plt_fshed_pa + 
-      #   theme(
-      #     plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
-      #     , plot.margin = margin(0.5,3,0.5,0.5, "cm")
-      #   )
-      , plt_patch_prop_temp +
-        theme(
-          plot.margin = margin(0,0.9,0.5,0.9, "cm")
-        )
-      #######################################
-      # , cowplot::plot_grid(
-      #   plotlist = list(
-      #     NULL
-      #     , plt_patch_prop_temp +
-      #       theme(
-      #         plot.margin = margin(0,0.2,0.5,0.2, "cm")
-      #       )
-      #     , NULL
-      #   )
-      #   , nrow = 1
-      #   , rel_widths = c(0.1,1,0.1)
-      # )
-      ######################################
-      # , plt_fshed_pa_incl + 
-      #   theme(
-      #     plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
-      #     , plot.margin = margin(0.5,3,0.5,0.5, "cm")
-      #   )
-    )
-    , ncol = 1
-    , axis = "lr"
-    , align = "v"
-    , rel_heights = c(1, 0.25)
-    , labels = c("A","B")
-    , label_size = 17
-    , label_fontface = "bold"
-    , label_colour = "gray11"
-    # , label_y = 0.99
+    , size = 2
+    , hjust = 1
   ) +
-  theme(plot.background = element_rect(fill = "white", color = NA))
+  geom_col(
+    width = 0.7, alpha = 0.9
+  ) +
+  geom_vline(xintercept = 0, color = "gray55", linetype = "solid", linewidth = 0.7) +
+  geom_text(
+    mapping = aes(
+      label = ifelse(
+        max_pct_patch_landscape_hack<0
+        , scales::percent(max_pct_patch_landscape, accuracy = 1)
+        , ""
+      )
+      , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+      , fontface = "bold"
+    )
+    , color = "black", size = 3
+    , hjust = +1
+  ) +
+  geom_text(
+    mapping = aes(
+      label = ifelse(
+        max_pct_patch_landscape_hack>=0
+        , scales::percent(max_pct_patch_landscape, accuracy = 1)
+        , ""
+      )
+      , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+      , fontface = "bold"
+    )
+    , color = "black", size = 3
+    , hjust = 0
+  ) +
+  annotate(
+    geom = "text"
+    , x = -0.75
+    , y = 0
+    , label = "high constraint"
+    , color = cols_rdylbu_lt[3]
+    , fontface = "bold"
+    , size = 2
+  ) +
+  annotate(
+    geom = "text"
+    , x = 0.95
+    , y = 0
+    , label = "low constraint"
+    , color = cols_rdylbu_lt[1]
+    , fontface = "bold"
+    , size = 2
+  ) +
+  scale_fill_manual(values = cols_rdylbu_lt) +
+  scale_color_manual(values = cols_rdylbu_lt) +
+  scale_x_continuous(
+    limits = c(-1.05,1.22)
+    , labels = scales::percent_format()
+    # , expand = expansion(mult = c(0, 0.1))
+    # , breaks = scales::extended_breaks(5)
+  ) +
+  scale_y_discrete(expand = expansion(mult = c(0.07,0.02))) +
+  facet_grid(
+    cols = vars(scenario_lab)
+  ) +
+  labs(
+    fill = "Level of\nConstraint"
+    , subtitle = "" # "percentage of total landscape area comprised by the largest patch" # "Largest Patch % of Landscape Area"
+    , x = "Percent of Overall Landscape Area Comprised by the Largest Patch" # "Largest Patch % of Landscape Area"
+    , y = ""
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none"
+    , legend.direction  = "horizontal"
+    , legend.title = element_text(size=7)
+    , axis.title.x = element_text(size=10, face = "bold")
+    , axis.title.y = element_blank()
+    , axis.text.x = element_blank()
+    , axis.text.y = element_text(color = "black",size=10, face = "bold")
+    , axis.ticks.x = element_blank()
+    , panel.grid.major = element_blank()
+    , panel.grid.minor = element_blank()
+    , strip.text = element_text(color = "black", face = "bold", size = 11)
+  )
 # export
 ggplot2::ggsave(
-    filename = paste0("../data/plt_ex_patch_map_bars_combo.jpeg")
+    filename = paste0("../data/plt_lrgst_patch_index_wide.jpeg")
     , plot = ggplot2::last_plot()
-    , width = 7.7
-    , height = 7
+    , width = 11
+    , height = 6
     , units = "in"
     , dpi = "print"
   )
+```
+
+Combine map with proportion of overall landscape in largest patch plot for publication
+
+```{r patch-map-bars-combo}
+patch_map_bars_combo_fn <- function(area_num_temp = 20) {
+
+  # plot large patch proportion of area horizontal to match map
+  plt_patch_prop_temp <- 
+    ggplot(
+      data = agg_cnstrnt_class_patches %>%
+        dplyr::filter(area_name==area_nm_list[area_num_temp]) %>% 
+        dplyr::mutate(scenario_lab = forcats::fct_rev(scenario_lab))
+      , mapping = aes(
+        y = 1
+        , x = max_pct_patch_landscape_hack
+        , fill = cnstrnt_class
+        , group = cnstrnt_class
+      )
+    ) +
+      geom_col(
+        width = 0.7, alpha = 0.9
+      ) +
+      geom_vline(xintercept = 0, color = "gray55", linetype = "solid", linewidth = 0.7) +
+      geom_text(
+        mapping = aes(
+          label = ifelse(
+            max_pct_patch_landscape_hack<0
+            , scales::percent(max_pct_patch_landscape, accuracy = 1)
+            , ""
+          )
+          , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+          , fontface = "bold"
+        )
+        , color = "black", size = 4
+        , hjust = +1
+      ) +
+      geom_text(
+        mapping = aes(
+          label = ifelse(
+            max_pct_patch_landscape_hack>=0
+            , scales::percent(max_pct_patch_landscape, accuracy = 1)
+            , ""
+          )
+          , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+          , fontface = "bold"
+        )
+        , color = "black", size = 4
+        , hjust = 0
+      ) +
+      # label ha below pct
+      geom_text(
+        mapping = aes(
+          label = ifelse(
+            max_pct_patch_landscape_hack<0
+            , paste0(
+                scales::comma(max_patch_area_ha,suffix = "k", scale = 1e-3, accuracy = 1)
+                , " ha"
+            )
+            , ""
+          )
+          , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+          , fontface = "bold"
+        )
+        , color = "black", size = 2.7
+        , hjust = +1
+        , vjust = 1.9
+      ) +
+      geom_text(
+        mapping = aes(
+          label = ifelse(
+            max_pct_patch_landscape_hack>=0
+            , paste0(
+                scales::comma(max_patch_area_ha,suffix = "k", scale = 1e-3, accuracy = 1)
+                , " ha"
+            )
+            , ""
+          )
+          , x = max_pct_patch_landscape_hack #+ .07*sign(max_pct_patch_landscape_hack)
+          , fontface = "bold"
+        )
+        , color = "black", size = 2.7
+        , hjust = 0
+        , vjust = 1.9
+      ) +
+      annotate(
+        geom = "text"
+        , x = -0.85
+        , y = 0.0
+        , label = "high constraint"
+        , color = cols_rdylbu_lt[3]
+        , fontface = "bold"
+        , size = 2.5
+      ) +
+      annotate(
+        geom = "text"
+        , x = 0.85
+        , y = 0.0
+        , label = "low constraint"
+        , color = cols_rdylbu_lt[1]
+        , fontface = "bold"
+        , size = 2.5
+      ) +
+      scale_fill_manual(values = cols_rdylbu_lt) +
+      scale_x_continuous(
+        limits = c(-1.22,1.22)
+        , labels = scales::percent_format()
+        , position = "bottom"
+      ) +
+      scale_y_discrete() +
+      facet_grid(
+        cols = vars(scenario_lab)
+        , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
+        # , switch = "both"
+      ) +
+      labs(
+        fill = "Level of\nConstraint"
+        , subtitle = "" # "percentage of total landscape area comprised by the largest patch" # "Largest Patch % of Landscape Area"
+        , x = "Percent of Overall Landscape Area Comprised by the Largest Patch" # "Largest Patch % of Landscape Area"
+        , y = ""
+      ) +
+      theme_light() +
+      theme(
+        legend.position = "none" # "top"
+        , legend.direction  = "horizontal"
+        , legend.title = element_text(size=7)
+        , axis.title.x = element_text(size=8, face = "bold")
+        , axis.title.y = element_blank()
+        , axis.text.x = element_blank()
+        , axis.ticks.x = element_blank()
+        , panel.grid.major = element_blank()
+        , panel.grid.minor = element_blank()
+        , strip.text = element_text(color = "black", face = "bold", size = 8)
+        # , strip.text = element_blank()
+      ) +
+      guides(
+        fill = guide_legend(reverse = T, override.aes = list(alpha = 0.9))
+      )
+  # combine
+  plt <- cowplot::plot_grid(
+      plotlist = list(
+        plt_ptch_list[[area_num_temp]] + 
+          theme(
+            legend.position = "top"
+            , plot.title = element_blank()
+            , plot.margin = margin(0.5,0.1,0,0.1, "cm")
+          )
+        # , plt_fshed_pa + 
+        #   theme(
+        #     plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
+        #     , plot.margin = margin(0.5,3,0.5,0.5, "cm")
+        #   )
+        , plt_patch_prop_temp +
+          theme(
+            plot.margin = margin(0,0.9,0.5,0.9, "cm")
+          )
+        #######################################
+        # , cowplot::plot_grid(
+        #   plotlist = list(
+        #     NULL
+        #     , plt_patch_prop_temp +
+        #       theme(
+        #         plot.margin = margin(0,0.2,0.5,0.2, "cm")
+        #       )
+        #     , NULL
+        #   )
+        #   , nrow = 1
+        #   , rel_widths = c(0.1,1,0.1)
+        # )
+        ######################################
+        # , plt_fshed_pa_incl + 
+        #   theme(
+        #     plot.background = element_rect(color = "gray77", fill="white", linewidth = 1)
+        #     , plot.margin = margin(0.5,3,0.5,0.5, "cm")
+        #   )
+      )
+      , ncol = 1
+      , axis = "lr"
+      , align = "v"
+      , rel_heights = c(1, 0.25)
+      , labels = c("A","B")
+      , label_size = 17
+      , label_fontface = "bold"
+      , label_colour = "gray11"
+      # , label_y = 0.99
+    ) +
+    theme(plot.background = element_rect(fill = "white", color = NA))
+  # return plot
+  return(plt)
+}
+# these are different sizes so manually set size
+c(20) %>% 
+  purrr::map(function(x){
+    # export
+    ggplot2::ggsave(
+        filename = paste0("../data/plt_ex_patch_map_bars_combo_",x,".jpeg")
+        , plot = patch_map_bars_combo_fn(x)
+        , width = 7.7
+        , height = 7
+        , units = "in"
+        , dpi = "print"
+      )
+  })
+c(9) %>% 
+  purrr::map(function(x){
+    # export
+    ggplot2::ggsave(
+        filename = paste0("../data/plt_ex_patch_map_bars_combo_",x,".jpeg")
+        , plot = patch_map_bars_combo_fn(x)
+        , width = 7
+        , height = 7.3
+        , units = "in"
+        , dpi = "print"
+      )
+  })
+c(6) %>% 
+  purrr::map(function(x){
+    # export
+    ggplot2::ggsave(
+        filename = paste0("../data/plt_ex_patch_map_bars_combo_",x,".jpeg")
+        , plot = patch_map_bars_combo_fn(x)
+        , width = 9
+        , height = 6.4
+        , units = "in"
+        , dpi = "print"
+      )
+  })
+# c(20,9,6) %>% 
+#   purrr::map(function(x){
+#     # export
+#     ggplot2::ggsave(
+#         filename = paste0("../data/plt_ex_patch_map_bars_combo_",x,".jpeg")
+#         , plot = patch_map_bars_combo_fn(x)
+#         , width = 7.7
+#         , height = 7
+#         , units = "in"
+#         , dpi = "print"
+#       )
+#   })
 
 ```
 
@@ -3741,9 +4167,9 @@ kableExtra::kable(
           table_temp %>% 
             dplyr::mutate(
               is_gt20 = dplyr::case_when(
-                low_remaining_pct >= .2 ~ "#008b8b"
-                , tot_remaining_pct >= .2 ~ "#545454"
-                , TRUE ~ "#cd3700"
+                low_remaining_pct >= .2 ~ cols_obj_html[1]
+                , tot_remaining_pct >= .2 ~ cols_obj_html[2]
+                , TRUE ~ cols_obj_html[3]
               )
           ) %>% 
           dplyr::pull(is_gt20)
@@ -3882,7 +4308,7 @@ ggplot() +
     , labeller = label_wrap_gen(width = 35, multi_line = TRUE)
     , scales = "free_x"
   ) +
-  scale_color_manual(values = c("#008b8b", "#cd3700", "#bebebe")) +
+  scale_color_manual(values = c(cols_obj_html[1],cols_obj_html[3],cols_obj_html[2])) +
   scale_y_continuous(expand = expansion(c(0.3,0.3))) +
   scale_x_discrete(labels = scales::label_wrap(10)) +
   labs(
@@ -3979,7 +4405,7 @@ ggplot(
     , switch = "y"
   ) +
   scale_fill_manual(values = RColorBrewer::brewer.pal(n=3,name="RdYlBu")[2:3]) +
-  scale_color_manual(values = c("darkcyan", "gray33", "orangered3")) +
+  scale_color_manual(values = cols_obj_r) +
   scale_x_continuous(expand = expansion(mult = c(0, .1)),labels = scales::percent_format()) +
   labs(
     fill = "Level of\nConstraint"
@@ -4072,7 +4498,7 @@ ggplot(
     , scales = "free_y"
   ) +
   scale_fill_manual(values = RColorBrewer::brewer.pal(n=3,name="RdYlBu")[2:3]) +
-  scale_color_manual(values = c("darkcyan", "gray33", "orangered3")) +
+  scale_color_manual(values = cols_obj_r) +
   scale_x_continuous(expand = expansion(mult = c(0, .15)),labels = scales::percent_format()) +
   labs(
     fill = "Level of\nConstraint"
@@ -4120,7 +4546,11 @@ obj_trtbl_temp <-
             ) %>% 
             factor(
               levels = 1:3
-              , labels = c("mechanical alone","mechanical+fire","fire")
+              , labels = c(
+                  ">20% in\nlow constraint"
+                  ,">20% in\nlow+medium constraint"
+                  , "<20% in\nlow+medium constraint"
+              )
               , ordered = T
             )
         ) %>% 
@@ -4202,9 +4632,9 @@ plt <- ggplot(
   # ) +
   scale_fill_manual(values = RColorBrewer::brewer.pal(n=3,name="RdYlBu")[2:3]) +
   scale_color_manual(values = c(
-    "mechanical alone"="darkcyan"
-    ,"mechanical+fire"="gray33"
-    , "fire"="orangered3")
+    ">20% in\nlow constraint"=cols_obj_r[1]
+    ,">20% in\nlow+medium constraint"=cols_obj_r[2]
+    , "<20% in\nlow+medium constraint"=cols_obj_r[3])
   ) +
   # scale_x_continuous(expand = expansion(mult = c(0, .15)),labels = scales::percent_format()) +
   scale_x_continuous(limits = c(0, .78),labels = scales::percent_format(),position = "top") +
@@ -4264,6 +4694,183 @@ ggplot2::ggsave(
   )
 
 ```
+
+map landscapes shaded by potential to meet 20-40%
+
+```{r map-objctv-ls, fig.height=8, warning=F}
+# map landscapes shaded by potential to meet 20-40%
+plt_fn_temp <- function(scnum=1) {
+  # filter and join data
+  sf_dta_temp <- wf_landscapes %>% 
+  dplyr::select(area_name) %>% 
+    # join with spatial data
+    dplyr::inner_join(
+      obj_trtbl_temp %>% 
+        dplyr::filter(scenario_id==scnum) %>% 
+        dplyr::group_by(area_name, scenario_id) %>% 
+        dplyr::filter(dplyr::row_number()==1) %>% 
+        dplyr::ungroup()
+      , by = dplyr::join_by("area_name")
+    ) 
+  # plot
+  plt <- plt_basemap_simple +
+  geom_sf(
+    data = sf_dta_temp
+    , mapping = aes(fill = treatment_objective)
+    , color="black"
+    , lwd=0.1
+    , alpha = 0.9
+  ) +
+  geom_text(
+    data = wf_landscapes %>% 
+        sf::st_drop_geometry() %>% 
+        sf::st_as_sf(coords = c("lon","lat")) %>% 
+        sf::st_set_crs(4326) %>% 
+        sf::st_transform(transform_crs)
+    , aes(
+        label = stringr::str_wrap(
+          dplyr::case_when(
+            stringr::str_count(name, "\\w+")<2
+              ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
+            , stringr::str_starts(name,"Sierra and Elko") ~ stringr::word(name,1,3)
+            , TRUE ~ stringr::word(name,1,2)
+          )
+          , 7)
+        # , color = paste0(investment, " investment")
+        , geometry = geometry
+        , fontface = "bold.italic"
+      )
+    , color = "black"
+    , stat = "sf_coordinates"
+    , size = 2
+    # , seed = 11
+    # , min.segment.length = 0
+    , show.legend = F
+  ) +
+  scale_fill_manual(values = c(
+    ">20% in\nlow constraint"=cols_obj_r[1]
+    ,">20% in\nlow+medium constraint"=cols_obj_r[2]
+    , "<20% in\nlow+medium constraint"=cols_obj_r[3])
+  ) +
+  labs(
+    fill = ""
+    , tag = paste0(
+      map_firesheds %>% dplyr::filter(scenario_id==scnum) %>% 
+        dplyr::pull(scenario_lab) %>% unique()
+      , " Map"
+    )
+  ) +
+  theme(
+    legend.position = c(0.8,0.9) # "top"
+    , legend.text = element_text(size = 7)
+    , plot.title = element_text(face = "bold", size = 9, margin = margin(0,0,30,0))
+    , plot.tag = element_text(face = "bold", size = 10)
+    , plot.tag.position = c(0.1,0.98) # "top"
+    , legend.spacing.y = unit(0.25, 'cm')
+    , plot.margin = margin(0,0,0,0,"cm")
+  ) +
+  guides(fill = guide_legend(byrow = TRUE))
+  # return
+  return(plt)
+}
+# plot
+# save export images for publication
+obj_trtbl_temp$scenario_id %>%
+  unique() %>%
+  purrr::map(function(x){
+      print(plt_fn_temp(x))
+      ggplot2::ggsave(
+          filename = paste0("../data/","plt_map_objctv_ls_",x,".jpeg")
+          # filename = paste0("../data/terrain/","plt_map_patches_fpa_",x,".jpeg")
+          , plot = ggplot2::last_plot()
+          , width = 8
+          , height = 8.5
+          , units = "in"
+          , dpi = "print"
+          , bg = "white"
+        )
+    }
+  )
+```
+
+make table of landscapes shifting availability toward objective
+
+```{r obj-area-table, results='asis'}
+# kable
+tbl_temp <- obj_trtbl_temp %>% 
+  dplyr::group_by(area_name, scenario_id) %>% 
+  dplyr::filter(dplyr::row_number()==1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::group_by(scenario_id, treatment_objective) %>% 
+  # dplyr::arrange(desc(pct_treatable_low)) %>% 
+  dplyr::arrange(area_name) %>% 
+  dplyr::mutate(rnk = dplyr::row_number()) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::select(scenario_lab, area_name, treatment_objective,rnk) %>% 
+  tidyr::pivot_wider(
+    names_from = scenario_lab
+    , values_from = area_name
+  ) %>% 
+  dplyr::arrange(treatment_objective, rnk)
+# kable table
+  options(knitr.kable.NA = "") 
+  kableExtra::kable(
+    tbl_temp %>% dplyr::select(tidyselect::starts_with("Scenario"))
+    , caption = " "
+    # , col.names = c("")
+  ) %>% 
+  kable_classic("striped", full_width=T) %>%
+  pack_rows(index = table(forcats::fct_inorder(tbl_temp$treatment_objective)))
+```
+
+
+```{r, include=F, eval=F}
+obj_trtbl_temp %>% 
+  dplyr::group_by(area_name, scenario_id) %>% 
+  dplyr::filter(dplyr::row_number()==1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::group_by(scenario_id, treatment_objective) %>% 
+  dplyr::arrange(desc(pct_treatable_low)) %>% 
+  dplyr::mutate(rnk = dplyr::row_number()) %>% 
+  dplyr::ungroup() %>% 
+  ggplot(
+    mapping = aes(y = rnk, x = scenario_lab)
+  ) +
+    geom_ribbon(mapping = aes(fill = treatment_objective, xmin=-Inf, xmax=Inf)) +
+    geom_text(mapping = aes(label = area_name, fontface = "bold"), color = "white") +
+    facet_grid(rows = vars(treatment_objective), scales = "free_y", switch = "y") +
+    scale_fill_manual(values = c(
+      ">20% in\nlow constraint"=cols_obj_r[1]
+      ,">20% in\nlow+medium constraint"=cols_obj_r[2]
+      , "<20% in\nlow+medium constraint"=cols_obj_r[3])
+    ) +
+    scale_y_reverse(expand = expansion(add = 1)) +
+    scale_x_discrete(position = "top") +
+    theme_light() +
+    theme(
+      axis.title = element_blank()
+      , axis.text.y = element_blank()
+      , axis.text.x = element_text(size = 12)
+      , strip.text = element_text(size = 12, color = "black")
+      , panel.grid = element_blank()
+    )
+
+# view
+obj_trtbl_temp %>% 
+  dplyr::group_by(area_name, scenario_id) %>% 
+  dplyr::filter(dplyr::row_number()==1) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(scenario_lab = stringr::str_remove_all(tolower(scenario_lab)," ")) %>% 
+  dplyr::select(scenario_lab, area_name, treatment_objective) %>% 
+  tidyr::pivot_wider(
+    names_from = scenario_lab
+    , values_from = c(treatment_objective)
+  ) %>% 
+  dplyr::arrange(scenario2,scenario1) %>% 
+  View()
+```
+
+
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
@@ -4891,6 +5498,24 @@ constrained_by_scnro_ls_pa %>%
   ) %>% 
   dplyr::arrange(comp_13) %>% 
   View()
+# change in lightly constrained largest patch index
+agg_cnstrnt_class_patches %>% 
+  dplyr::mutate(scenario_lab = scenario_lab %>% tolower() %>% stringr::str_replace_all(" ", "_")) %>% 
+  dplyr::select(area_name, scenario_lab, cnstrnt_class, max_pct_patch_landscape) %>% 
+  tidyr::pivot_wider(
+    names_from = scenario_lab
+    , values_from = c(max_pct_patch_landscape)
+  ) %>% 
+  dplyr::mutate(
+    comp_12 = scenario_2-scenario_1
+    , comp_13 = scenario_3-scenario_1
+    , comp_23 = scenario_3-scenario_2
+  ) %>% 
+  dplyr::filter(cnstrnt_class=="low constraint") %>% 
+  dplyr::arrange(desc(comp_13)) %>% 
+  View()
+
+
 #####
 long_txt <- "priority landscape divided into fireshed project areas. Shadings indicate percentages of the total combined forest and shrubland acres that are available for mechanical treatment: high (81–100% constrained; 0–19% available for mechanical treatment), medium (60–80% constrained; 20–40% available), and low (0–59% constrained; 41–100% available). The largest patch of interconnected fireshed project areas classified as highly and lightly constrained are highlighted."
 

@@ -227,8 +227,6 @@ plt_scenario_table_temp <-
   plt_cnstrnt_class_table + theme(plot.margin = margin(0,0,0,0,"cm"))
 ```
 
-
-
 ## Data Preparation
 
 ### Load WCS landscapes
@@ -617,6 +615,87 @@ constrained_by_scnro_ls_pa <-
   )
 ```
 
+### Re-project raster images
+
+The raster images exported from [this GEE script](https://code.earthengine.google.com/e20171fcdc42f2b8bb5d5174fabcf1e9?noload=true) are in `epsg:5070`, this is used for accurately calculating areas used to match those exported from GEE. For mapping overlayed with `ggmap` background maps, these images need to be transformed to `epsg:3857`. Transforming takes a long time so do it once and save these for use later.
+
+```{r eval=FALSE}
+# list of area names to work over
+area_nm_list <- sort(unique(constrained_by_scnro_ls$area_name))
+# function to read, reproject, export only needed files
+rast2prj3875 <- function(row_n = 1) {
+  # set up name like in file name
+    nm_temp <- paste0(
+      "*"
+      , area_nm_list[row_n] %>% 
+        stringr::str_split(pattern = ":", simplify = T) %>% 
+        purrr::pluck(2) %>% 
+        trimws() %>% 
+        stringr::str_replace_all(pattern = " ", replacement = "_")
+      # , ".*\\.tif"
+    )
+  nm_temp
+  # get file list to reproject
+  flist_reprjct <-
+    list.files(
+    "../data/wildfirepriority_WCS202308/images/"
+    , pattern = paste0(nm_temp, "\\.tif$")
+    , recursive = T
+  )
+  # flist_reprjct
+  # get file list of already projected
+  flist_prjct <-
+    list.files(
+    "../data/wildfirepriority_WCS202308/images/"
+    , pattern = paste0(nm_temp, "_3857", "\\.tif$")
+    , recursive = T
+  )
+  # flist_prjct
+  # remove already projected
+  flist_reprjct <- flist_reprjct[
+    !flist_reprjct %in% stringr::str_remove_all(flist_prjct,"_3857")
+  ]
+  # flist_reprjct
+  # read all raster data files and reproject
+  # !!!!!!!!!!!!map function over all flist_reprjct
+  if(length(flist_reprjct)>0){
+    1:length(flist_reprjct) %>%  
+      purrr::map(function(x){
+        # read
+        rast_temp <- terra::rast(
+            paste0("../data/wildfirepriority_WCS202308/images/",flist_reprjct[x])
+          )
+        # reproject
+        rast_temp <- rast_temp %>% 
+          terra::project(
+              # loading this vector and transforming to get terra formatted crs
+              wf_landscapes %>% 
+                dplyr::filter(
+                    area_name == area_nm_list[row_n]
+                  ) %>% 
+                sf::st_transform(crs=3857) %>% 
+                terra::vect() %>%
+                terra::crs()
+            )
+        # export
+        terra::writeRaster(
+          x = rast_temp
+          , filename = paste0("../data/wildfirepriority_WCS202308/images/"
+            , (flist_reprjct[x] %>% 
+                stringr::str_replace(".tif", "_3857.tif"))
+          )
+          , overwrite = T
+        )
+      })
+  }
+  gc()
+}
+# map over function
+1:length(area_nm_list) %>%
+  purrr::map(rast2prj3875)
+```
+
+
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 gc()
@@ -634,8 +713,6 @@ gc()
 #########################################################################
 # set crs for working with ggmap
 plt_crs <- 3857
-# list of area names to work over
-area_nm_list <- sort(unique(constrained_by_scnro_ls$area_name))
 # color palette for fill of f.p.a.'s
 cols_rdylbu_lt <- c(
   "low constraint" = rev(RColorBrewer::brewer.pal(n=3,name="RdYlBu"))[1]
@@ -2201,19 +2278,19 @@ pdf_write_fn <- function(row_n = 1, rast_agg_fact = 15){
       , plot.title = element_blank() # element_text(size = 14, face = "bold", hjust = 0.5)
     )
   # spatial_frmwrk_map_temp
-  landcover_map_temp <- landcover_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
+  landcover_map_temp <- landcover_map_fn(row_n = row_n, rast_agg_fact = 6) +
     theme(plot.title = element_blank())
-  protected_map_temp <- protected_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
+  protected_map_temp <- protected_map_fn(row_n = row_n, rast_agg_fact = 5) +
     theme(plot.title = element_blank())
-  slopes_map_temp <- slopes_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
+  slopes_map_temp <- slopes_map_fn(row_n = row_n, rast_agg_fact = 5) +
     theme(plot.title = element_blank())
-  roads_map_temp <- roads_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
+  roads_map_temp <- roads_map_fn(row_n = row_n, rast_agg_fact = 5) +
     theme(plot.title = element_blank())
-  riparian_map_temp <- riparian_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
+  riparian_map_temp <- riparian_map_fn(row_n = row_n, rast_agg_fact = 3) +
     theme(plot.title = element_blank())
-  administrative_map_temp <- administrative_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
+  administrative_map_temp <- administrative_map_fn(row_n = row_n, rast_agg_fact = 4) +
     theme(plot.title = element_blank())
-  treatable_map_temp <- treatable_map_fn(row_n = row_n, rast_agg_fact = rast_agg_fact) +
+  treatable_map_temp <- treatable_map_fn(row_n = row_n, rast_agg_fact = 7) +
     theme(plot.title = element_blank())
   reduction_table_temp <- reduction_table_fn(row_n = row_n)
   title_plot_temp <- title_plot_fn(row_n = row_n)
@@ -2508,7 +2585,7 @@ plt_grd13 <-
 # pdf_write_fn(2)
 ```
 
-```{r pdf-write-merge}
+```{r pdf-clear-fldr}
 # create dir for pdf plots
   hey_dir <- "../data/pdf"
   if(dir.exists(hey_dir)==FALSE){
@@ -2516,23 +2593,48 @@ plt_grd13 <-
   }else{ # delete all files if folder exists
     file.remove(list.files(hey_dir, full.names = TRUE))
   }
-# 1:length(area_nm_list) %>% 
-# c(1,2,4,12,9,18) %>%
-c(2,4) %>%
-  purrr::map(pdf_write_fn, rast_agg_fact=15)
-# combine all pdfs together
-pdfs_temp <- sort(list.files("../data/pdf", pattern = "\\.pdf$", full.names = TRUE))
-# combine with pdftools
-pdftools::pdf_combine(
-  pdfs_temp
-  , output = paste0(
-    "../data/pdf/"
-    , "WCS_Mech_Constraints_"
-    , gsub("-", "", Sys.Date())
-    , ".pdf"
-  )
-)
+```
 
+```{r pdf-write-merge}
+# create the pdfs for each landscape
+  1:length(area_nm_list) %>%
+  # c(1,2,4,12,9,18) %>%
+  # c(2,4) %>%
+    purrr::map(pdf_write_fn, rast_agg_fact=10)
+# combine all pdfs together
+  pdfs_temp <- sort(list.files("../data/pdf", pattern = "\\.pdf$", full.names = TRUE))
+  # combine into one packet with pdftools
+  pdftools::pdf_combine(
+    pdfs_temp
+    , output = paste0(
+      "../data/pdf/"
+      , "WCS_Mech_Constraints_"
+      , gsub("-", "", Sys.Date())
+      , ".pdf"
+    )
+  )
+  # combine into landscape packet
+  ls_temp <- pdfs_temp %>% 
+    stringr::str_remove_all("../data/pdf/Landscape_") %>% 
+    stringr::str_remove_all(".pdf") %>% 
+    stringr::str_sub(start = 1, end = -2) %>% 
+    unique()
+  1:length(ls_temp) %>% 
+    purrr::map(
+      function(x){
+        pdftools::pdf_combine(
+          pdfs_temp[stringr::str_detect(pdfs_temp,ls_temp[x])]
+          , output = paste0(
+            "../data/pdf/"
+            , "WCS_Mech_Constraints_"
+            , ls_temp[x]
+            , ".pdf"
+          )
+        )
+      }
+    )
+  # clean up page files
+  file.remove(pdfs_temp)
 ```
 
 
