@@ -33,6 +33,7 @@ library(USAboundaries)
 # remove.packages("ggmap")
 # devtools::install_github("stadiamaps/ggmap")
 library(ggmap)
+library(ggspatial)
 # https://www.youtube-nocookie.com/embed/6jUSyI6x3xg
 # ggmap::register_stadiamaps("APIKEY", write = T)
 # ggmap::get_stadiamap(c(left = 32.2, bottom = 34.5, right = 34.8, top = 35.8), zoom = 10, maptype = "stamen_terrain") %>% ggmap()
@@ -150,7 +151,7 @@ knitr::include_graphics("https://i.ibb.co/zNH19jp/Presentation1nm.png")
 
 ### Load WCS landscapes
 
-WCS priority landscape spatial data from the  [USFS Geospatial Data Discovery](https://data-usfs.hub.arcgis.com/datasets/wildfire-crisis-strategy-landscapes-feature-layer/explore) site (accessed 2023-04-04).
+WCS priority landscape spatial data from the  [USFS Geospatial Data Discovery](https://www.arcgis.com/home/item.html?id=cf9be6c6ec044c338fc6ae27eb586063) site (accessed 2023-09-13).
 
 ```{r wcs-ls-dta, results='hide'}
 # load data
@@ -707,14 +708,18 @@ plt_basemap +
         sf::st_set_crs(4326) %>% 
         sf::st_transform(transform_crs)
     , aes(
-        label = stringr::str_wrap(
-          dplyr::case_when(
-            stringr::str_count(name, "\\w+")<2
-              ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
-            , stringr::str_starts(name,"Sierra and Elko") ~ stringr::word(name,1,3)
-            , TRUE ~ stringr::word(name,1,2)
+        label = dplyr::case_when(
+          stringr::str_starts(name,"Sierra and Elko") ~ name # stringr::word(name,1,3)
+          , T ~ 
+            stringr::str_wrap(
+              dplyr::case_when(
+                stringr::str_count(name, "\\w+")<2
+                  ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
+                , TRUE ~ stringr::word(name,1,2)
+              )
+            , 7
           )
-          , 7)
+        )
         , color = paste0(investment, " investment")
         , geometry = geometry
         , fontface = "bold.italic"
@@ -732,6 +737,7 @@ plt_basemap +
     , color = "Landscapes"
     # , linetype = "Landscapes"
   ) +
+  # ggspatial::annotation_scale(location = "br", style = "ticks", pad_y = unit(0.7, "cm"), width_hint = 0.05) +
   theme(
       legend.position = c(0.87,0.87) # "top"
       # , legend.direction = "horizontal"
@@ -786,14 +792,18 @@ plt_basemap +
         sf::st_set_crs(4326) %>% 
         sf::st_transform(transform_crs)
     , aes(
-        label = stringr::str_wrap(
-          dplyr::case_when(
-            stringr::str_count(name, "\\w+")<2
-              ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
-            , stringr::str_starts(name,"Sierra and Elko") ~ stringr::word(name,1,3)
-            , TRUE ~ stringr::word(name,1,2)
+        label = dplyr::case_when(
+          stringr::str_starts(name,"Sierra and Elko") ~ name # stringr::word(name,1,3)
+          , T ~ 
+            stringr::str_wrap(
+              dplyr::case_when(
+                stringr::str_count(name, "\\w+")<2
+                  ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
+                , TRUE ~ stringr::word(name,1,2)
+              )
+            , 7
           )
-          , 7)
+        )
         , color = paste0(investment, " investment")
         , geometry = geometry
         , fontface = "bold.italic"
@@ -806,6 +816,7 @@ plt_basemap +
   ) +
   scale_fill_manual(values = c("All-Lands"="firebrick","USFS-Only"="orange3","Not High Risk"="gray88")) +
   scale_color_manual(values = c("black", "navy")) +
+  # ggspatial::annotation_scale(location = "br", style = "ticks", pad_y = unit(0.7, "cm"), width_hint = 0.05) +
   labs(
     fill = "Fireshed\nHigh-Risk Status"
     , color = "Landscapes"
@@ -876,6 +887,7 @@ ggplot() +
     , subtitle = name_temp
   ) +
   coord_sf(expand = F) +
+  ggspatial::annotation_scale(location = "br", style = "ticks", pad_x = unit(0.1, "cm"), pad_y = unit(0.25, "cm")) +
   theme_void() +
   theme(
       legend.position = c(1.08,0.79) # "top"
@@ -885,11 +897,10 @@ ggplot() +
       , plot.subtitle = element_text(face = "bold.italic", size = 10, hjust = 0.5)
     ) +
   guides(
-    color = guide_legend(order = 1, override.aes = list(size = 8, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
+    color = guide_legend(order = 1, override.aes = list(size = 2.7, linewidth = 6, fill = NA, linetype = 1)) #, linetype = c(5,1,1)))
     , fill = guide_legend(order = 2, override.aes = list(size = 8,linewidth = 0, alpha = 1)) # , color = NA
   )
 ```
-
 
 ```{r map-fs-pa-inset, include=FALSE, eval=FALSE}
 # inset map
@@ -988,16 +999,17 @@ plt_fshed_pa_incl <- ggplot() +
     , subtitle = name_temp
   ) +
   coord_sf(expand = F) +
+  ggspatial::annotation_scale(location = "br", style = "ticks", pad_x = unit(0.1, "cm"), pad_y = unit(0.25, "cm")) +
   theme_void() +
   theme(
-      legend.position = c(1.08,0.83) # "top"
+      legend.position = c(1.08,0.825) # "top"
       # , legend.direction = "horizontal"
       , legend.title = element_text(size = 8, face = "bold")
       , legend.text = element_text(size = 10)
       , plot.subtitle = element_text(face = "bold.italic", size = 10, hjust = 0.5)
     ) +
   guides(
-    color = guide_legend(order = 1, override.aes = list(size = 8, linewidth = 5, fill = NA)) #, linetype = c(5,1,1)))
+    color = guide_legend(order = 1, override.aes = list(size = 2.7, linewidth = 6, fill = NA, linetype = 1)) #, linetype = c(5,1,1)))
     , fill = guide_legend(order = 2, override.aes = list(size = 8,linewidth = 0, alpha = 1)) # , color = NA
   )
 
@@ -1126,12 +1138,10 @@ ggmap(hey_map_aligned) +
 
 ```
 
-
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
-
 
 ## Landscape-level analysis 
 
@@ -1447,7 +1457,8 @@ ggplot(
   ) +
   labs(
     fill = ""
-    , x = "Percent of Forest & Shrub Area in Overall Landscape" 
+    , x = "Percent Available and Constrained Relative to Total Forest and Shrub Area" 
+    # , x = "Percent of Forest & Shrub Area in Overall Landscape" 
     , subtitle = "" 
     , y = ""
   ) +
@@ -1558,7 +1569,8 @@ ggplot(
   facet_grid(cols = vars(scenario_lab)) +
   labs(
     fill = ""
-    , x = "Percent of Forest & Shrub Area in Overall Landscape" 
+    , x = "Percent Available and Constrained Relative to Total Forest and Shrub Area" 
+    # , x = "Percent of Forest & Shrub Area in Overall Landscape" 
     , subtitle = "" 
     , y = ""
   ) +
@@ -2180,14 +2192,18 @@ plt_fn_temp <- function(scnum=1) {
         sf::st_set_crs(4326) %>% 
         sf::st_transform(transform_crs)
     , aes(
-        label = stringr::str_wrap(
-          dplyr::case_when(
-            stringr::str_count(name, "\\w+")<2
-              ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
-            , stringr::str_starts(name,"Sierra and Elko") ~ stringr::word(name,1,3)
-            , TRUE ~ stringr::word(name,1,2)
+        label = dplyr::case_when(
+          stringr::str_starts(name,"Sierra and Elko") ~ name # stringr::word(name,1,3)
+          , T ~ 
+            stringr::str_wrap(
+              dplyr::case_when(
+                stringr::str_count(name, "\\w+")<2
+                  ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
+                , TRUE ~ stringr::word(name,1,2)
+              )
+            , 7
           )
-          , 7)
+        )
         # , color = paste0(investment, " investment")
         , geometry = geometry
         , fontface = "bold.italic"
@@ -2393,23 +2409,26 @@ landscape_basemap_fn <- function(row_n=1) {
   )
   # should buffer extend?
   buffer_box <- dplyr::case_when(
-    area_nm_list[row_n] %in% c("WA: Colville Northeast Washington Vision") ~ 50000
+    area_nm_list[row_n] %in% c("WA: Colville Northeast Washington Vision") ~ 58600
     , area_nm_list[row_n] %in% c(
       "CA: Southern California Fireshed Risk Reduction Strategy"
       , "ID: Nez Perce-Clearwater-Lower Salmon"
       , "MT: Kootenai Complex"
     ) ~ 40000
     , area_nm_list[row_n] %in% c(
-      "AZ: San Carlos Apache Tribal Forest Protection"
-      , "NV: Sierra and Elko Fronts"
-      , "UT: Pine Valley"
+      "NV: Sierra and Elko Fronts"
     ) ~ 21000
     , area_nm_list[row_n] %in% c(
-      "CA: Plumas Community Protection"
+      "NM: Enchanted Circle"
+      , "UT: Pine Valley"
+    ) ~ 25000
+    , area_nm_list[row_n] %in% c(
+      "AZ: San Carlos Apache Tribal Forest Protection"
+      , "CA: Plumas Community Protection"
       , "CA: North Yuba"
       , "CA: Trinity Forest Health and Fire-Resilient Rural Communities"
       , "OR: Mount Hood Forest Health and Fire-Resilient Communities"
-    ) ~ 35000
+    ) ~ 35500
     , area_nm_list[row_n] %in% c("UT: Wasatch") ~ 5000
     , 
       (wf_landscapes %>% 
@@ -2419,8 +2438,8 @@ landscape_basemap_fn <- function(row_n=1) {
         dplyr::pull(hectares) %>% 
         purrr::pluck(1)
         <= if_smaller_ha_temp
-      ) ~ 15000
-    , TRUE ~ 5000
+      ) ~ 15500
+    , TRUE ~ 6000
   )
   
   # bounding box
@@ -2482,9 +2501,21 @@ landscape_basemap_fn <- function(row_n=1) {
   # return
   return(plt)
 }
-# landscape_basemap_fn(row_n = 9)
+# landscape_basemap_fn(row_n = 13)
 # function to plot scenario constraints + basemap
 scenario_cnstrnt_map_fn <- function(row_n = 1) {
+  # location ggspatial::annotation_scale 
+  my_scale_loc <- dplyr::case_when(
+    area_nm_list[row_n] %in% c(
+      "CA: Southern California Fireshed Risk Reduction Strategy"
+      , "WA: Colville Northeast Washington Vision"
+      , "CO: Colorado Front Range"
+      , "AZ: 4FRI"
+      , "ID: Southwest Idaho"
+    ) ~ "bl"
+    , TRUE ~ "br"
+  )
+  # plot
   plt <- landscape_basemap_fn(row_n) + 
       geom_sf(
         data = map_firesheds %>%
@@ -2511,6 +2542,12 @@ scenario_cnstrnt_map_fn <- function(row_n = 1) {
         # , switch = "both"
       ) +
       scale_fill_manual(values = cols_rdylbu_lt) +
+      ggspatial::annotation_scale(
+        location = my_scale_loc
+        , style = "ticks"
+        , pad_x = unit(0.1, "cm")
+        , pad_y = unit(0.1, "cm")
+      ) +
       labs(
         fill = "Level of\nConstraint"
       ) +
@@ -2520,7 +2557,7 @@ scenario_cnstrnt_map_fn <- function(row_n = 1) {
   # return
   return(plt)
 }
-# scenario_cnstrnt_map_fn(row_n = 5)
+# scenario_cnstrnt_map_fn(row_n = 15)
 ```
 
 ```{r scenario-maps-print, eval=F, include=T}
@@ -2574,8 +2611,6 @@ ggmap::ggmap(hey_ggmap) +
     )
 
 ```
-
-
 
 ```{r, include=FALSE, eval=FALSE}
 # use tmap for small multiple maps????
@@ -2725,12 +2760,16 @@ plt_ptch_list[]
 # save export images for publication
 1:length(plt_ptch_list) %>% 
   purrr::map(function(x){
+      # get height vs width
+      x_temp = abs(plt_ptch_list[[x]]$data$lon[1]-plt_ptch_list[[x]]$data$lon[4])
+      y_temp = abs(plt_ptch_list[[x]]$data$lat[1]-plt_ptch_list[[x]]$data$lat[4])
+      # save as long or wide
       ggplot2::ggsave(
           filename = paste0("../data/patch_maps/","plt_map_patches_fpa_",x,".jpeg")
           # filename = paste0("../data/terrain/","plt_map_patches_fpa_",x,".jpeg")
           , plot = plt_ptch_list[[x]] # ggplot2::last_plot()
-          , width = 11
-          , height = 8.5
+          , width = ifelse(y_temp/x_temp > 1.5, 8.5, 11) # 11
+          , height = ifelse(y_temp/x_temp > 1.5, 11, 8.5) # 8.5
           , units = "in"
           , dpi = "print"
           , bg = "white"
@@ -4671,7 +4710,7 @@ return(plt)
 cowplot::plot_grid(
   obj_plt_fn(1) +
     theme(
-      legend.position = c(0.86,0.82)
+      legend.position = c(0.86,0.8)
       , legend.direction = "vertical"
     )
   , obj_plt_fn(2) +
@@ -4728,14 +4767,18 @@ plt_fn_temp <- function(scnum=1) {
         sf::st_set_crs(4326) %>% 
         sf::st_transform(transform_crs)
     , aes(
-        label = stringr::str_wrap(
-          dplyr::case_when(
-            stringr::str_count(name, "\\w+")<2
-              ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
-            , stringr::str_starts(name,"Sierra and Elko") ~ stringr::word(name,1,3)
-            , TRUE ~ stringr::word(name,1,2)
+        label = dplyr::case_when(
+          stringr::str_starts(name,"Sierra and Elko") ~ name # stringr::word(name,1,3)
+          , T ~ 
+            stringr::str_wrap(
+              dplyr::case_when(
+                stringr::str_count(name, "\\w+")<2
+                  ~ stringr::word(name,1,stringr::str_count(name, "\\w+"))
+                , TRUE ~ stringr::word(name,1,2)
+              )
+            , 7
           )
-          , 7)
+        )
         # , color = paste0(investment, " investment")
         , geometry = geometry
         , fontface = "bold.italic"
