@@ -2674,7 +2674,7 @@ cnstrnt_class_patches <-
   ) %>% 
   # separate a multipolygon geometry into several polygons objects after performing a st_union()
   sf::st_cast(to = "MULTIPOLYGON") %>%
-  st_cast(to = "POLYGON") %>% 
+  sf::st_cast(to = "POLYGON") %>% 
   # calculate patch area 
   dplyr::ungroup() %>% 
   dplyr::group_by(area_name, scenario_id, scenario_lab, cnstrnt_class) %>% 
