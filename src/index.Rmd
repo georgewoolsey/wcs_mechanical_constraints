@@ -36,7 +36,7 @@ The objective of this study is to spatially identify the treatable area and the 
 
 # Data Sources
 
-The data utilized for this analysis was generated in Google Earth Engine using [this script](https://code.earthengine.google.com/bc974ce5d2f8a25a2eb75af5766395b9?noload=true). This program outputs 1) a data table of features - USDA Forest Service (USFS) managed forests - with user-defined constraints to forest managment and the reduction in treatable forested area based on those constraints, and 2) a shapefile of the spatial arrangement of treatable and constrained forested area within the boundary of each feature.
+The data utilized for this analysis was generated in Google Earth Engine using [this script](https://code.earthengine.google.com/5dc322c9c106500a0d071d6829cb0f6d?noload=true) for landscape-level constraint analysis data (i.e., row unique by WCS landscape) and [this script](https://code.earthengine.google.com/a16626b77d03489cd71ef670ff518d65?noload=true) for fireshed project area constraint analysis (i.e., row unique by WCS landscape + FPA). This program outputs 1) a data table of features - USDA Forest Service (USFS) WCS landscapes or FPA's - with user-defined constraints to forest management and the reduction in treatable forested area based on those constraints, and 2) a raster file of the spatial arrangement of treatable and constrained forested area within the boundary of each feature.
 
 The data products used in this study include:
 
@@ -49,26 +49,27 @@ The data products used in this study include:
     i.  The United States Census Bureau [TIGER dataset](https://www.census.gov/programs-surveys/geography/guidance/tiger-data-products-guide.html) (2016 release)
     ii. The [USFS FACTS database](https://data.fs.usda.gov/geodata/edw/datasets.php?xmlKeyword) products: [Motor Vehicle Use Map: Roads](https://data.fs.usda.gov/geodata/edw/edw_resources/meta/S_USA.Road_MVUM.xml); [Motor Vehicle Use Map: Trails](https://data.fs.usda.gov/geodata/edw/edw_resources/meta/S_USA.Trail_MVUM.xml); [National Forest System Roads](https://data.fs.usda.gov/geodata/edw/edw_resources/meta/S_USA.RoadCore_FS.xml); [National Forest System Trails](https://data.fs.usda.gov/geodata/edw/edw_resources/meta/S_USA.TrailNFS_Publish.xml)
 
-```{r include=FALSE, echo=FALSE, eval=FALSE}
+```{r include=FALSE, echo=FALSE, eval=T}
 knitr::write_bib(c(
   .packages(),
-  'bookdown'
-  , 'knitr'
-  , 'rmarkdown'
-  , 'tidyverse'
-  , 'lubridate'
-  , 'scales'
-  , 'ggrepel'
-  , 'viridis'
-  , 'kableExtra'
-  , 'sf'
-  , 'stars'
-  , 'lwgeom'
-  , 'mapview'
-  , 'leafpop'
-  , 'cowplot'
-  , 'RColorBrewer'
-  , 'USAboundaries'
-  , 'nhdplusTools'
+  "bookdown"
+  , "knitr"
+  , "rmarkdown"
+  , "tidyverse"
+  , "lubridate"
+  , "viridis"
+  , "scales"
+  , "latex2exp"
+  , "kableExtra"
+  , "cowplot"
+  , "RColorBrewer"
+  , "ggtext"
+  , "mapview"
+  , "leafpop"
+  , "tidytext"
+  , "sf"
+  , "USAboundaries"
+  , "ggmap"
+  , "ggspatial"
 ), 'packages.bib')
 ```

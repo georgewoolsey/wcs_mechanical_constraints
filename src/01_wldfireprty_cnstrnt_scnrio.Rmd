@@ -193,7 +193,7 @@ wf_landscapes <- sf::read_sf("../data/Wildfire_Crisis_Strategy_Landscapes/Wildfi
 
 ### Load landscape-level constraint data
 
-Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was created via this [Google Earth Engine script](https://code.earthengine.google.com/692417f7747e247fc0545824135a0355?noload=true).
+Landscape-level constraint analysis data (i.e., row unique by WCS landscape) was created via this [Google Earth Engine script](https://code.earthengine.google.com/5dc322c9c106500a0d071d6829cb0f6d?noload=true).
 
 ```{r ls-cnstrnt-dta, results='hide'}
 # load landscape constraint scenario data
@@ -438,7 +438,7 @@ fireshed_proj_area <- sf::st_read("../data/firesheds/Fireshed_Registry3A_Project
       )
 ```
 
-Fireshed project area constraint analysis data (i.e., row unique by WCS landscape + f.p.a.) was created via this [Google Earth Engine script](https://code.earthengine.google.com/003e3994cfc4c469d52d224225a4b109?noload=true)
+Fireshed project area constraint analysis data (i.e., row unique by WCS landscape + FPA) was created via this [Google Earth Engine script](https://code.earthengine.google.com/a16626b77d03489cd71ef670ff518d65?noload=true)
 
 ```{r fs-ld-dta}
 # load fireshed constraint scenario data
